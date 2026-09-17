@@ -8,7 +8,7 @@ export default function Home() {
 
   const { data } = useSession();
 
-  console.log(data);
+
   return (
     <div>
       <h2>Hello World  </h2>
