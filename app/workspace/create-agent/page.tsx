@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import axios from 'axios'
+import { useRouter } from "next/navigation"
 
 
 function CreateAgent() {
@@ -17,7 +18,7 @@ function CreateAgent() {
   const [name, setName] = useState("");
   const [avatarSeed, setAvatarSeed] = useState<string>(crypto.randomUUID());
   const [isLoading, setIsLoading] = useState(false);
-
+  const router = useRouter();
   function shuffleAvatar() {
     const seed = crypto.randomUUID();
     setAvatarSeed(seed);
@@ -27,17 +28,24 @@ function CreateAgent() {
   const onClickCreateAgent = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
-    const avatarImage = `https://api.dicebear.com/10.x/gaze/svg?tags=animation&seed=${avatarSeed}`;
-    const newAgentId = crypto.randomUUID();
-    const result = await axios.post('/api/agent', {
-      name: name,
-      description: description,
-      agentImage: avatarImage,
-      agentId: newAgentId
-    });
+    try {
+      const avatarImage = `https://api.dicebear.com/10.x/gaze/svg?tags=animation&seed=${avatarSeed}`;
+      const newAgentId = crypto.randomUUID();
+      const result = await axios.post('/api/agent', {
+        name: name,
+        description: description,
+        agentImage: avatarImage,
+        agentId: newAgentId
+      });
 
-    console.log(result.data);
-    setIsLoading(false);
+      console.log(result.data);
+      router.push('/workspace/' + newAgentId);
+      setIsLoading(false);
+    }
+    catch (e) {
+      setIsLoading(false);
+      console.log("Error creating agent: ", e)
+    }
   }
 
 
