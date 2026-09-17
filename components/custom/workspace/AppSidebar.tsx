@@ -28,33 +28,28 @@ import {
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import axios from "axios"
+import { AgentConfigType } from "@/type/Agent"
+import { usePathname } from "next/navigation"
 
-const agents = [
-  {
-    name: "Research Assistant",
-    image: "https://api.dicebear.com/9.x/shapes/svg?seed=research-assistant",
-    initials: "RA",
-  },
-  {
-    name: "Sales Navigator",
-    image: "https://api.dicebear.com/9.x/shapes/svg?seed=sales-navigator",
-    initials: "SN",
-  },
-  {
-    name: "Support Copilot",
-    image: "https://api.dicebear.com/9.x/shapes/svg?seed=support-copilot",
-    initials: "SC",
-  },
-  {
-    name: "Content Strategist",
-    image: "https://api.dicebear.com/9.x/shapes/svg?seed=content-strategist",
-    initials: "CS",
-  },
-]
+
 
 function AppSidebar() {
+  const [agents, setAgents] = useState<AgentConfigType[]>();
 
   const { data } = useSession();
+  const path = usePathname();
+
+  useEffect(() => {
+    GetUserAgents()
+  }, [path]);
+
+  const GetUserAgents = async () => {
+    const result = await axios.get('/api/agent');
+    console.log(result.data);
+    setAgents(result.data);
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -83,7 +78,7 @@ function AppSidebar() {
           <SidebarGroupLabel>Your Agents</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
-              {agents.map((agent, index) => (
+              {agents?.map((agent, index) => (
                 <SidebarMenuItem key={agent.name}>
                   <SidebarMenuButton
                     className="h-10 gap-2.5 rounded-lg"
@@ -91,8 +86,8 @@ function AppSidebar() {
                     tooltip={agent.name}
                   >
                     <Avatar size="sm" className="size-6">
-                      <AvatarImage src={agent.image} alt={agent.name} />
-                      <AvatarFallback>{agent.initials}</AvatarFallback>
+                      <AvatarImage src={agent?.agentImage} alt={agent.name} />
+                      <AvatarFallback>{agent?.agentImage}</AvatarFallback>
                     </Avatar>
                     <span>{agent.name}</span>
                   </SidebarMenuButton>
