@@ -1,13 +1,14 @@
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "../../auth/[...nextauth]/route";
-import { AgentConfig, db } from "@/db";
+import { AgentConfig, db, Tools } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { executeAgentChat } from "@/lib/openai/openai-agent";
+import { getActiveConnectedAccounts, getOrCreateAgentSession } from "@/lib/composio/service";
 
 export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
-    const { agentId, messages } = await req.json()
+    const { agentId, messages, timezone } = await req.json()
 
     if (!session?.user?.email) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Missing agentId or messages" }, { status: 400 });
     }
 
+    let agentComposioTools: any[] = [];
     // Fetch agent configuration from the database or any other source based on the agentId
 
     const agentConfigs = await db.select().from(AgentConfig)
@@ -28,9 +30,65 @@ export async function POST(req: NextRequest) {
         )
     const agentConfig = agentConfigs[0];
 
+    if (!agentConfig) {
+        return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    if (agentConfig?.tools) {
+        //@ts-ignore
+        const composioSession = await getOrCreateAgentSession(agentConfig, session.user?.email);
+        agentComposioTools = await composioSession.tools();
+    }
+
+    //All Available Tools
+    const tools = await db.select().from(Tools).where(eq(Tools.isActive, true));
+
+    const toolsCatalog = tools.map((tool) => ({
+        slug: tool.slug,
+        name: tool.name,
+        description: tool.description
+    }))
     // execute agent chat with Message History
+    const response = await executeAgentChat(agentConfig.name, agentConfig?.description ?? '',
+        messages, agentComposioTools, toolsCatalog, timezone);
 
-    const response = await executeAgentChat(agentConfig.name, agentConfig?.description ?? '', messages);
+    const toolsBySlug = new Map(
+        tools.map((tool) => [tool.slug.toLowerCase(), tool])
+    );
+    const suggestions = (response.routine?.tools ?? []).filter((suggestion) =>
+        toolsBySlug.has(suggestion.slug.toLowerCase())
+    );
+    const normalizedResponse = response.routine
+        ? {
+            ...response,
+            routine: {
+                ...response.routine,
+                tools: suggestions,
+            },
+        }
+        : response;
 
-    return NextResponse.json({ response })
+    const connectedAccounts = await getActiveConnectedAccounts(
+        session.user.email,
+        suggestions.map((suggestion) => suggestion.slug)
+    );
+    const toolCards = suggestions.map((suggestion) => {
+        const tool = toolsBySlug.get(suggestion.slug.toLowerCase())!;
+        return {
+            slug: tool.slug,
+            name: tool.name,
+            description: tool.description,
+            reason: suggestion.reason,
+            icon: tool.icon,
+            isConnected: Boolean(connectedAccounts[tool.slug.toLowerCase()]?.length),
+            isEnabled: tool.isActive !== false,
+        };
+    });
+
+
+    return NextResponse.json(
+        {
+            response: normalizedResponse,
+            toolCards
+        })
 }

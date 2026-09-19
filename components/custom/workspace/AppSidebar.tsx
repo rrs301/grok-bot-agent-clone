@@ -79,19 +79,21 @@ function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {agents?.map((agent, index) => (
-                <SidebarMenuItem key={agent.name}>
-                  <SidebarMenuButton
-                    className="h-10 gap-2.5 rounded-lg"
-                    isActive={index === 0}
-                    tooltip={agent.name}
-                  >
-                    <Avatar size="sm" className="size-6">
-                      <AvatarImage src={agent?.agentImage} alt={agent.name} />
-                      <AvatarFallback>{agent?.agentImage}</AvatarFallback>
-                    </Avatar>
-                    <span>{agent.name}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <Link href={'/workspace/' + agent.agentId}>
+                  <SidebarMenuItem key={agent.name}>
+                    <SidebarMenuButton
+                      className="h-10 gap-2.5 rounded-lg"
+                      isActive={index === 0}
+                      tooltip={agent.name}
+                    >
+                      <Avatar size="sm" className="size-6">
+                        <AvatarImage src={agent?.agentImage} alt={agent.name} />
+                        <AvatarFallback>{agent?.agentImage}</AvatarFallback>
+                      </Avatar>
+                      <span>{agent.name}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </Link>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>

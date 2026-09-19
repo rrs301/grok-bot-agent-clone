@@ -9,6 +9,7 @@ import { useParams } from "next/navigation"
 import axios from "axios"
 import { toast } from "@/components/ui/toast"
 import { AgentConfigContext } from "@/context/AgentConfigContext"
+import { AgentResponseView } from "./AgentResponseView"
 
 export function ChatPanel() {
 
@@ -47,14 +48,17 @@ export function ChatPanel() {
     try {
       const result = await axios.post('/api/agent/chat', {
         agentId: agentId,
-        messages: updatedMsgs
+        messages: updatedMsgs,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
 
       console.log(result.data.response);
       const agentMsg: MessageType = {
         id: crypto.randomUUID(),
         role: 'agent',
-        content: result.data.response,
+        content: result.data.response?.message,
+        response: result.data.response,
+        toolCards: result.data?.toolCards,
         time: new Date().toLocaleDateString()
       }
       setMessages((prev) => [...prev, agentMsg])
@@ -98,7 +102,7 @@ export function ChatPanel() {
               {msg.role == 'agent' ? <AgentMessage time=""
                 agentAvatar={agentConfig?.agentImage}
                 agentName={agentConfig?.name}
-              >{msg.content}</AgentMessage>
+              ><AgentResponseView message={msg} /></AgentMessage>
                 : <UserMessage>{msg.content}</UserMessage>}
             </div>
           ))}
@@ -158,3 +162,8 @@ function AgentMessage({ children, time, agentAvatar, agentName }: { children: Re
     </div>
   )
 }
+
+
+
+
+
