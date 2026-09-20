@@ -1,17 +1,35 @@
+"use client"
+
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/toast"
 import type { ToolSuggestionCardData } from "@/type/Message"
-import { Check, Link2Off, Wrench } from "lucide-react"
+import axios from "axios"
+import { Check, Link2Off, Loader2, Plug, Unplug, Wrench } from "lucide-react"
+import { useState } from "react"
 
 type ToolSuggestionCardProps = {
+  agentId: string
   tool: ToolSuggestionCardData
+  onConnectionChange: (slug: string, isConnected: boolean) => void
 }
 
-export function ToolSuggestionCard({ tool }: ToolSuggestionCardProps) {
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds))
+
+export function ToolSuggestionCard({
+  agentId,
+  tool,
+  onConnectionChange,
+}: ToolSuggestionCardProps) {
+  const [isUpdating, setIsUpdating] = useState(false)
   const status = !tool.isEnabled
     ? "Unavailable"
     : tool.isConnected
       ? "Connected"
       : "Connection required"
+
+
 
   return (
     <article className="rounded-xl border bg-background p-3.5 shadow-xs">
@@ -46,6 +64,30 @@ export function ToolSuggestionCard({ tool }: ToolSuggestionCardProps) {
           Why this tool
         </p>
         <p className="mt-0.5 text-xs leading-5">{tool.reason}</p>
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <Button
+          size="sm"
+          variant={tool.isConnected ? "outline" : "default"}
+          disabled={!tool.isEnabled || isUpdating}
+        // onClick={tool.isConnected ? disconnect : connect}
+        >
+          {isUpdating ? (
+            <Loader2 className="animate-spin" />
+          ) : tool.isConnected ? (
+            <Unplug />
+          ) : (
+            <Plug />
+          )}
+          {isUpdating
+            ? tool.isConnected
+              ? "Disconnecting..."
+              : "Connecting..."
+            : tool.isConnected
+              ? "Disconnect"
+              : "Connect"}
+        </Button>
       </div>
     </article>
   )
