@@ -102,7 +102,7 @@ export function ChatPanel() {
               {msg.role == 'agent' ? <AgentMessage time=""
                 agentAvatar={agentConfig?.agentImage}
                 agentName={agentConfig?.name}
-              ><AgentResponseView message={msg} /></AgentMessage>
+              ><AgentResponseView message={msg} agentId={String(agentId)} /></AgentMessage>
                 : <UserMessage>{msg.content}</UserMessage>}
             </div>
           ))}
@@ -162,7 +162,6 @@ function AgentMessage({ children, time, agentAvatar, agentName }: { children: Re
     </div>
   )
 }
-
 
 
 

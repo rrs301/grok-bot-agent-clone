@@ -1,10 +1,14 @@
+"use client"
+
 import type { RoutineDraft } from "@/lib/openai/agent-response-schema"
 import type { ToolSuggestionCardData } from "@/type/Message"
 import { Badge } from "@/components/ui/badge"
 import { CalendarDays, CheckCircle2, Clock3, Globe2, Repeat2, Sparkles } from "lucide-react"
+import { useState } from "react"
 import { ToolSuggestionCard } from "./ToolSuggestionCard"
 
 type RoutineCardProps = {
+  agentId: string
   routine: RoutineDraft
   toolCards: ToolSuggestionCardData[]
 }
@@ -27,9 +31,10 @@ function displayToolName(slug: string) {
     .join(" ")
 }
 
-export function RoutineCard({ routine, toolCards }: RoutineCardProps) {
+export function RoutineCard({ agentId, routine, toolCards }: RoutineCardProps) {
+  const [tools, setTools] = useState(toolCards)
   const cardsBySlug = new Map(
-    toolCards.map((tool) => [tool.slug.toLowerCase(), tool])
+    tools.map((tool) => [tool.slug.toLowerCase(), tool])
   )
   const requiredTools = routine.tools.map((suggestion) => {
     const card = cardsBySlug.get(suggestion.slug.toLowerCase())
@@ -48,6 +53,15 @@ export function RoutineCard({ routine, toolCards }: RoutineCardProps) {
   const allConnected = requiredTools.every(
     (tool) => tool.isEnabled && tool.isConnected
   )
+  const updateConnection = (slug: string, isConnected: boolean) => {
+    setTools((current) =>
+      current.map((tool) =>
+        tool.slug.toLowerCase() === slug.toLowerCase()
+          ? { ...tool, isConnected }
+          : tool
+      )
+    )
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
@@ -107,7 +121,12 @@ export function RoutineCard({ routine, toolCards }: RoutineCardProps) {
           {requiredTools.length > 0 ? (
             <div className="space-y-2.5">
               {requiredTools.map((tool) => (
-                <ToolSuggestionCard key={tool.slug} tool={tool} />
+                <ToolSuggestionCard
+                  key={tool.slug}
+                  agentId={agentId}
+                  tool={tool}
+                  onConnectionChange={updateConnection}
+                />
               ))}
             </div>
           ) : (

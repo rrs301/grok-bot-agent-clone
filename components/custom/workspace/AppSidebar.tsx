@@ -2,6 +2,9 @@
 
 import {
   BotIcon,
+  ChevronUpIcon,
+  LoaderCircleIcon,
+  LogOutIcon,
   PlusIcon,
   StoreIcon,
 } from "lucide-react"
@@ -12,6 +15,11 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Sidebar,
   SidebarContent,
@@ -26,7 +34,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import Image from "next/image"
-import { useSession } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import axios from "axios"
@@ -37,9 +45,17 @@ import { usePathname } from "next/navigation"
 
 function AppSidebar() {
   const [agents, setAgents] = useState<AgentConfigType[]>();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const { data } = useSession();
   const path = usePathname();
+
+  const userInitials = data?.user?.name
+    ?.split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "U";
 
   useEffect(() => {
     GetUserAgents()
@@ -49,6 +65,11 @@ function AppSidebar() {
     const result = await axios.get('/api/agent');
     console.log(result.data);
     setAgents(result.data);
+  }
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await signOut({ callbackUrl: "/sign-in" });
   }
 
   return (
@@ -115,23 +136,65 @@ function AppSidebar() {
 
         <SidebarSeparator className="mx-0" />
 
-        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <Avatar className="size-8">
-            <AvatarImage
-              src={data?.user?.image ?? ''}
-              alt={data?.user?.name ?? ''}
-            />
-            <AvatarFallback>RS</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-sm font-medium leading-none">
-              {data?.user?.name}
-            </p>
-            <p className="mt-1 truncate text-xs text-sidebar-foreground/60">
-              {data?.user?.email}
-            </p>
-          </div>
-        </div>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                aria-label="Open user menu"
+              />
+            }
+          >
+            <Avatar className="size-8">
+              <AvatarImage
+                src={data?.user?.image ?? ''}
+                alt={data?.user?.name ?? 'User'}
+              />
+              <AvatarFallback>{userInitials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-medium leading-none">
+                {data?.user?.name}
+              </p>
+              <p className="mt-1 truncate text-xs text-sidebar-foreground/60">
+                {data?.user?.email}
+              </p>
+            </div>
+            <ChevronUpIcon className="size-4 shrink-0 text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" />
+          </PopoverTrigger>
+
+          <PopoverContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-60 gap-2 p-2"
+          >
+            <div className="px-2 py-1.5">
+              <p className="truncate text-sm font-medium">
+                {data?.user?.name}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {data?.user?.email}
+              </p>
+            </div>
+            <div className="h-px bg-border" />
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={isSigningOut}
+              onClick={handleSignOut}
+            >
+              {isSigningOut ? (
+                <LoaderCircleIcon className="size-4 animate-spin" />
+              ) : (
+                <LogOutIcon className="size-4" />
+              )}
+              {isSigningOut ? "Signing out..." : "Sign out"}
+            </Button>
+          </PopoverContent>
+        </Popover>
       </SidebarFooter>
     </Sidebar>
   )

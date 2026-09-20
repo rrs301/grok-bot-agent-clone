@@ -43,37 +43,43 @@ export async function POST(req: NextRequest) {
     //All Available Tools
     const tools = await db.select().from(Tools).where(eq(Tools.isActive, true));
 
-    const toolsCatalog = tools.map((tool) => ({
-        slug: tool.slug,
-        name: tool.name,
-        description: tool.description
-    }))
+    // const toolsCatalog = tools.map((tool) => ({
+    //     slug: tool.slug,
+    //     name: tool.name,
+    //     description: tool.description
+    // }))
     // execute agent chat with Message History
     const response = await executeAgentChat(agentConfig.name, agentConfig?.description ?? '',
-        messages, agentComposioTools, toolsCatalog, timezone);
+        messages, agentComposioTools, tools, timezone);
 
     const toolsBySlug = new Map(
         tools.map((tool) => [tool.slug.toLowerCase(), tool])
     );
-    const suggestions = (response.routine?.tools ?? []).filter((suggestion) =>
+
+    const directSuggestions = response.suggestedTools.filter((suggestion) =>
         toolsBySlug.has(suggestion.slug.toLowerCase())
     );
-    const normalizedResponse = response.routine
-        ? {
-            ...response,
-            routine: {
-                ...response.routine,
-                tools: suggestions,
-            },
-        }
-        : response;
+
+    const routineSuggestions = (response.routine?.tools ?? []).filter((suggestion) =>
+        toolsBySlug.has(suggestion.slug.toLowerCase())
+    );
+
+    const requestedSlugs = [
+        ...new Set(
+            [...directSuggestions, ...routineSuggestions].map(
+                (suggestion) => suggestion.slug
+            )
+        ),
+    ];
 
     const connectedAccounts = await getActiveConnectedAccounts(
         session.user.email,
-        suggestions.map((suggestion) => suggestion.slug)
+        requestedSlugs
     );
-    const toolCards = suggestions.map((suggestion) => {
+
+    const createToolCard = (suggestion: (typeof directSuggestions)[number]) => {
         const tool = toolsBySlug.get(suggestion.slug.toLowerCase())!;
+
         return {
             slug: tool.slug,
             name: tool.name,
@@ -83,12 +89,26 @@ export async function POST(req: NextRequest) {
             isConnected: Boolean(connectedAccounts[tool.slug.toLowerCase()]?.length),
             isEnabled: tool.isActive !== false,
         };
-    });
+    };
+
+    const suggestedToolCards = directSuggestions.map(createToolCard);
+    const routineToolCards = routineSuggestions.map(createToolCard);
+
+    const normalizedResponse = {
+        ...response,
+        suggestedTools: suggestedToolCards,
+        routine: response.routine
+            ? {
+                ...response.routine,
+                tools: routineSuggestions,
+            }
+            : null,
+    };
 
 
     return NextResponse.json(
         {
             response: normalizedResponse,
-            toolCards
+            toolCards: routineToolCards
         })
 }
