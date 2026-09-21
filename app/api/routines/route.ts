@@ -1,5 +1,5 @@
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { AgentConfig, db, Routines, Tools } from "@/db";
+import { AgentConfig, db, RoutineExecutions, Routines, Tools } from "@/db";
 import { getActiveConnectedAccounts } from "@/lib/composio/service";
 import { routineSchema } from "@/lib/openai/agent-response-schema";
 import { getNextRunAt, normalizeRoutineSchedule } from "@/lib/routines/schedule";
@@ -313,5 +313,35 @@ export async function GET(req: NextRequest) {
     )
     .orderBy(desc(Routines.createdAt));
 
-  return NextResponse.json({ routines });
+  const latestExecutions = routines.length > 0
+    ? await db
+      .select()
+      .from(RoutineExecutions)
+      .where(inArray(RoutineExecutions.routineId, routines.map((routine) => routine.id)))
+      .orderBy(desc(RoutineExecutions.queuedAt))
+    : [];
+  const latestExecutionByRoutineId = new Map<string, typeof latestExecutions[number]>();
+  for (const execution of latestExecutions) {
+    if (!latestExecutionByRoutineId.has(execution.routineId)) {
+      latestExecutionByRoutineId.set(execution.routineId, execution);
+    }
+  }
+
+  return NextResponse.json({
+    routines: routines.map((routine) => {
+      const latestExecution = latestExecutionByRoutineId.get(routine.id);
+      const executionIsPendingNow = latestExecution?.status === "queued"
+        && latestExecution.scheduledFor.getTime() <= Date.now();
+      const executionStatus = latestExecution?.status === "queued" && !executionIsPendingNow
+        ? undefined
+        : latestExecution?.status;
+      return {
+        ...routine,
+        executionStatus,
+        latestExecutionId: latestExecution?.id ?? null,
+        latestExecutionError: latestExecution?.error ?? null,
+        latestExecutionCompletedAt: latestExecution?.completedAt ?? null,
+      };
+    }),
+  });
 }

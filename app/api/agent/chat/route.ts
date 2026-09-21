@@ -8,8 +8,10 @@ import { agentResponseSchema, routineSchema } from "@/lib/openai/agent-response-
 import { setAgentToolConnection } from "@/lib/agent-tools";
 import { getActiveConnectedAccounts, getOrCreateAgentSession } from "@/lib/composio/service";
 import { getAnsweredClarificationIds } from "@/lib/openai/clarification-context";
+import { triggerRoutineRunNow } from "@/lib/routines/run-now";
 
 const routineLanguage = /\b(every|everyday|daily|weekly|monthly|hourly|recurring|schedule(?:d)?|routine|automation|automatically|monitor|digest|each\s+(?:day|morning|evening|week|month)|remind\s+me|tomorrow|tonight)\b/i;
+const runRoutineLanguage = /\b(?:run|execute|start|trigger|launch)\b[\s\S]{0,80}\b(?:routine|automation)\b|\b(?:routine|automation)\b[\s\S]{0,80}\b(?:now|run|execute|start|trigger|launch)\b/i;
 
 function isRoutinePlanningConversation(messages: any[]) {
     const latestUserMessage = [...messages]
@@ -42,6 +44,52 @@ function includesCatalogTool(text: string, slug: string, name: string) {
         const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(text);
     });
+}
+
+function normalizeMatchText(value: string) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function findRoutineForImmediateRun<T extends { id: string; name: string; goal: string; isActive: boolean }>(
+    text: string,
+    routines: T[]
+) {
+    const activeRoutines = routines.filter((routine) => routine.isActive);
+    if (activeRoutines.length === 0) {
+        return { routine: null, candidates: [] };
+    }
+
+    const normalizedText = normalizeMatchText(text);
+    const exactMatches = activeRoutines.filter((routine) => {
+        const normalizedName = normalizeMatchText(routine.name);
+        return normalizedName.length > 0 && normalizedText.includes(normalizedName);
+    });
+
+    if (exactMatches.length === 1) {
+        return { routine: exactMatches[0], candidates: exactMatches };
+    }
+
+    if (exactMatches.length > 1) {
+        return { routine: null, candidates: exactMatches };
+    }
+
+    const tokenMatches = activeRoutines.filter((routine) => {
+        const tokens = normalizeMatchText(`${routine.name} ${routine.goal}`)
+            .split(" ")
+            .filter((token) => token.length >= 4);
+
+        return tokens.some((token) => normalizedText.includes(token));
+    });
+
+    if (tokenMatches.length === 1) {
+        return { routine: tokenMatches[0], candidates: tokenMatches };
+    }
+
+    if (activeRoutines.length === 1) {
+        return { routine: activeRoutines[0], candidates: activeRoutines };
+    }
+
+    return { routine: null, candidates: tokenMatches.length > 0 ? tokenMatches : activeRoutines };
 }
 
 function summarizeApprovalActions(actions: Array<{ tool: string; arguments: string }>) {
@@ -88,6 +136,98 @@ export async function POST(req: NextRequest) {
 
     if (!agentConfig) {
         return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    const latestUserText = [...messages]
+        .reverse()
+        .find((message) => message?.role === "user" && typeof message?.content === "string")
+        ?.content ?? "";
+
+    if (runRoutineLanguage.test(latestUserText)) {
+        const savedRoutines = await db
+            .select()
+            .from(Routines)
+            .where(
+                and(
+                    eq(Routines.agentId, agentId),
+                    eq(Routines.userEmail, userEmail)
+                )
+            );
+
+        if (savedRoutines.length === 0) {
+            return NextResponse.json({
+                response: agentResponseSchema.parse({
+                    type: "message",
+                    intent: "immediate_action",
+                    message: "You do not have any saved routines for this agent yet.",
+                    questions: [],
+                    suggestedTools: [],
+                    routine: null,
+                    confirmation: null,
+                }),
+                toolCards: [],
+            });
+        }
+
+        const { routine, candidates } = findRoutineForImmediateRun(latestUserText, savedRoutines);
+        if (!routine) {
+            return NextResponse.json({
+                response: agentResponseSchema.parse({
+                    type: "clarification",
+                    intent: "immediate_action",
+                    message: "Which routine should I run now?",
+                    questions: [{
+                        id: "routine_to_run",
+                        question: "Choose one routine to execute.",
+                        options: candidates.map((candidate) => ({
+                            label: candidate.name,
+                            value: `Run routine ${candidate.name}`,
+                            description: candidate.goal,
+                        })),
+                    }],
+                    suggestedTools: [],
+                    routine: null,
+                    confirmation: null,
+                }),
+                toolCards: [],
+            });
+        }
+
+        const runResult = await triggerRoutineRunNow({
+            agentId,
+            routineId: routine.id,
+            userEmail,
+        });
+
+        if ("error" in runResult) {
+            return NextResponse.json({
+                response: agentResponseSchema.parse({
+                    type: "message",
+                    intent: "immediate_action",
+                    message: runResult.error,
+                    questions: [],
+                    suggestedTools: [],
+                    routine: null,
+                    confirmation: null,
+                }),
+                toolCards: [],
+            });
+        }
+
+        return NextResponse.json({
+            response: agentResponseSchema.parse({
+                type: "message",
+                intent: "immediate_action",
+                message: runResult.alreadyRunning
+                    ? `“${runResult.routine.name}” is already running. I will not start a duplicate execution.`
+                    : `Started “${runResult.routine.name}” now. You can track its status in the Schedule tab.`,
+                questions: [],
+                suggestedTools: [],
+                routine: null,
+                confirmation: null,
+            }),
+            toolCards: [],
+        });
     }
 
     let editingRoutine = null;
@@ -178,10 +318,6 @@ export async function POST(req: NextRequest) {
             });
     }
 
-    const latestUserText = [...messages]
-        .reverse()
-        .find((message) => message?.role === "user" && typeof message?.content === "string")
-        ?.content ?? "";
     const explicitlyRequestedConnection = /\b(?:connect|link|authorize)\b/i.test(latestUserText);
     const explicitlyMentionedTools = explicitlyRequestedConnection
         ? tools.filter((tool) =>

@@ -13,6 +13,7 @@ type RoutineRunEvent = {
   executionId: string;
   routineId: string;
   scheduledFor: string;
+  trigger?: 'scheduled' | 'manual';
 };
 
 function errorMessage(error: unknown) {
@@ -41,7 +42,14 @@ function getRunEventData(event: unknown): RoutineRunEvent | null {
     return null;
   }
 
-  return { executionId, routineId, scheduledFor };
+  const trigger = 'trigger' in data ? data.trigger : undefined;
+
+  return {
+    executionId,
+    routineId,
+    scheduledFor,
+    trigger: trigger === 'manual' ? 'manual' : 'scheduled',
+  };
 }
 
 /**
@@ -272,7 +280,10 @@ export const executeRoutineExecution = inngest.createFunction(
         tools: routine.tools,
       });
 
-      if (!isRoutineScheduledAt(draft.schedule, scheduledFor)) {
+      if (
+        runEvent.trigger !== 'manual' &&
+        !isRoutineScheduledAt(draft.schedule, scheduledFor)
+      ) {
         await db
           .update(RoutineExecutions)
           .set({

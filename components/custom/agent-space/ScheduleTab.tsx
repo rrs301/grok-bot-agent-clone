@@ -19,11 +19,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/toast"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { RoutineEditEventDetail, RoutinesChangedEventDetail, SavedRoutine } from "@/type/Routine"
 import axios from "axios"
-import { CalendarClock, Clock3, Loader2, MoreHorizontal, Pencil, PowerOff, Repeat2, Trash2 } from "lucide-react"
+import { CalendarClock, Clock3, Loader2, MoreHorizontal, Pencil, Play, PowerOff, Repeat2, Trash2 } from "lucide-react"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+
+const runningStatuses = new Set(["queued", "running"])
+const terminalStatuses = new Set(["completed", "failed", "skipped"])
 
 export function ScheduleTab() {
   const { agentId } = useParams<{ agentId: string }>()
@@ -31,40 +40,140 @@ export function ScheduleTab() {
   const [isLoading, setIsLoading] = useState(true)
   const [routineToDelete, setRoutineToDelete] = useState<SavedRoutine | null>(null)
   const [routineToDeactivate, setRoutineToDeactivate] = useState<SavedRoutine | null>(null)
+  const [routineToRun, setRoutineToRun] = useState<SavedRoutine | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [isRunStarting, setIsRunStarting] = useState(false)
   const [activateRoutineId, setActivateRoutineId] = useState<string | null>(null)
+  const seenExecutionIds = useRef(new Set<string>())
+
+  const loadRoutines = useCallback(() => {
+    if (!agentId) return Promise.resolve()
+
+    return axios
+      .get<{ routines: SavedRoutine[] }>("/api/routines", { params: { agentId } })
+      .then(({ data }) => {
+        setRoutines((current) => {
+          const previousById = new Map(current.map((routine) => [routine.id, routine]))
+
+          for (const nextRoutine of data.routines) {
+            const previous = previousById.get(nextRoutine.id)
+            const executionId = nextRoutine.latestExecutionId
+            if (!executionId || seenExecutionIds.current.has(executionId)) continue
+
+            if (
+              previous?.latestExecutionId === executionId
+              && previous.executionStatus
+              && runningStatuses.has(previous.executionStatus)
+              && nextRoutine.executionStatus
+              && terminalStatuses.has(nextRoutine.executionStatus)
+            ) {
+              seenExecutionIds.current.add(executionId)
+              toast.add({
+                title: nextRoutine.executionStatus === "completed"
+                  ? "Routine finished"
+                  : "Routine failed",
+                description: nextRoutine.executionStatus === "completed"
+                  ? `“${nextRoutine.name}” completed successfully.`
+                  : nextRoutine.latestExecutionError ?? `“${nextRoutine.name}” did not complete.`,
+                type: nextRoutine.executionStatus === "completed" ? "success" : "error",
+              })
+            }
+          }
+
+          return data.routines
+        })
+      })
+      .catch(() => {
+        setRoutines([])
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [agentId])
 
   useEffect(() => {
     if (!agentId) return
 
-    let isMounted = true
-    const loadRoutines = () => {
-      axios
-        .get<{ routines: SavedRoutine[] }>("/api/routines", { params: { agentId } })
-        .then(({ data }) => {
-          if (isMounted) setRoutines(data.routines)
-        })
-        .catch(() => {
-          if (isMounted) setRoutines([])
-        })
-        .finally(() => {
-          if (isMounted) setIsLoading(false)
-        })
-    }
     const handleRoutinesChanged = (event: Event) => {
-      const createdAgentId = (event as CustomEvent<RoutinesChangedEventDetail>).detail?.agentId
-      if (createdAgentId === agentId) loadRoutines()
+      const changedAgentId = (event as CustomEvent<RoutinesChangedEventDetail>).detail?.agentId
+      if (changedAgentId === agentId) loadRoutines()
     }
 
     loadRoutines()
     window.addEventListener("routines-changed", handleRoutinesChanged)
 
     return () => {
-      isMounted = false
       window.removeEventListener("routines-changed", handleRoutinesChanged)
     }
-  }, [agentId])
+  }, [agentId, loadRoutines])
+
+  useEffect(() => {
+    const hasRunningRoutine = routines.some((routine) =>
+      routine.executionStatus && runningStatuses.has(routine.executionStatus)
+    )
+    if (!hasRunningRoutine) return
+
+    const intervalId = window.setInterval(() => {
+      loadRoutines()
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [loadRoutines, routines])
+
+  const runRoutine = async () => {
+    if (!routineToRun) return
+    setIsRunStarting(true)
+
+    try {
+      const { data } = await axios.post<{
+        execution: {
+          id: string
+          status: SavedRoutine["executionStatus"]
+          error: string | null
+          completedAt: string | null
+        }
+        alreadyRunning: boolean
+      }>("/api/routines/run", {
+        agentId,
+        routineId: routineToRun.id,
+      })
+
+      setRoutines((current) =>
+        current.map((routine) =>
+          routine.id === routineToRun.id
+            ? {
+              ...routine,
+              executionStatus: data.execution.status,
+              latestExecutionId: data.execution.id,
+              latestExecutionError: data.execution.error,
+              latestExecutionCompletedAt: data.execution.completedAt,
+            }
+            : routine
+        )
+      )
+      setRoutineToRun(null)
+      toast.add({
+        title: data.alreadyRunning ? "Routine already running" : "Routine started",
+        description: data.alreadyRunning
+          ? "This routine is already executing, so a duplicate run was not started."
+          : `“${routineToRun.name}” is executing now.`,
+        type: data.alreadyRunning ? "info" : "loading",
+      })
+      window.dispatchEvent(new CustomEvent("routines-changed", { detail: { agentId } }))
+    } catch (error) {
+      const description = axios.isAxiosError(error)
+        ? error.response?.data?.error ?? "Please try again."
+        : "Please try again."
+      toast.add({
+        title: "Could not run routine",
+        description,
+        type: "error",
+      })
+    } finally {
+      setIsRunStarting(false)
+    }
+  }
 
   const editRoutine = (routine: SavedRoutine) => {
     window.dispatchEvent(new CustomEvent<RoutineEditEventDetail>("routine-edit-requested", {
@@ -179,9 +288,43 @@ export function ScheduleTab() {
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Badge variant={routine.isActive ? "secondary" : "outline"}>
-                    {routine.isActive ? "Active" : "Inactive"}
+                  <Badge variant={
+                    routine.executionStatus && runningStatuses.has(routine.executionStatus)
+                      ? "default"
+                      : routine.isActive ? "secondary" : "outline"
+                  }>
+                    {routine.executionStatus && runningStatuses.has(routine.executionStatus)
+                      ? "Running"
+                      : routine.isActive ? "Active" : "Inactive"}
                   </Badge>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={(
+                          <Button
+                            aria-label={`Run ${routine.name}`}
+                            className="size-7"
+                            disabled={
+                              !routine.isActive
+                              || Boolean(routine.executionStatus && runningStatuses.has(routine.executionStatus))
+                            }
+                            onClick={() => setRoutineToRun(routine)}
+                            size="icon"
+                            variant="ghost"
+                          />
+                        )}
+                      >
+                        {routine.executionStatus && runningStatuses.has(routine.executionStatus)
+                          ? <Loader2 className="animate-spin" />
+                          : <Play />}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {routine.executionStatus && runningStatuses.has(routine.executionStatus)
+                          ? "Running"
+                          : "Run now"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={(
@@ -241,6 +384,29 @@ export function ScheduleTab() {
           ))}
         </div>
       )}
+
+      <AlertDialog
+        open={Boolean(routineToRun)}
+        onOpenChange={(open) => {
+          if (!open && !isRunStarting) setRoutineToRun(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run this routine now?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{routineToRun?.name}” will start immediately instead of waiting for its scheduled time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRunStarting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={isRunStarting} onClick={runRoutine}>
+              {isRunStarting && <Loader2 className="animate-spin" />}
+              {isRunStarting ? "Starting..." : "Run"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={Boolean(routineToDeactivate)}
