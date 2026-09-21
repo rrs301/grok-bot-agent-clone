@@ -47,14 +47,23 @@ export function ConfigurationPanel() {
       description: "Your agent configuration is being saved.",
       type: "info",
     })
-    const result = await axios.put('/api/agent', agentConfig);
-    console.log(result.data);
+    try {
+      const result = await axios.put('/api/agent', agentConfig);
+      console.log(result.data);
 
-    toast.add({
-      title: "Agent Configuration Saved",
-      description: "Your agent configuration has been saved successfully.",
-      type: "success",
-    })
+      toast.add({
+        title: "Agent Configuration Saved",
+        description: "Your agent configuration has been saved successfully.",
+        type: "success",
+      })
+    } catch (error) {
+      console.error("Failed to save agent configuration", error);
+      toast.add({
+        title: "Unable to Save Agent Configuration",
+        description: "Please try again in a moment.",
+        type: "error",
+      })
+    }
   }
 
   return (

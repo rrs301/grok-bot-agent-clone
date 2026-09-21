@@ -14,7 +14,5 @@ export const connectedTools = [
 ]
 
 export const agentActions = [
-  { name: "Duplicate Agent", description: "Create a copy of this agent", icon: Copy },
   { name: "Pause Agent", description: "Temporarily stop all activity", icon: CirclePause },
-  { name: "Reset Agent", description: "Restore the default configuration", icon: RefreshCcw },
 ]

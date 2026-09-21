@@ -16,6 +16,7 @@ export type ToolSuggestionCardData = {
     description: string
     reason: string
     icon?: string
+    category?: string | null
     isConnected: boolean
     isEnabled: boolean
 }

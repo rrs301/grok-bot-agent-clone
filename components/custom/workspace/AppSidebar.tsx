@@ -1,12 +1,13 @@
 "use client"
 
 import {
-  BotIcon,
   ChevronUpIcon,
+  CheckCircle2Icon,
   LoaderCircleIcon,
   LogOutIcon,
   PlusIcon,
   StoreIcon,
+  WrenchIcon,
 } from "lucide-react"
 
 import {
@@ -15,6 +16,14 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   Popover,
   PopoverContent,
@@ -40,6 +49,8 @@ import { useEffect, useState } from "react"
 import axios from "axios"
 import { AgentConfigType } from "@/type/Agent"
 import { usePathname } from "next/navigation"
+import type { ToolSuggestionCardData } from "@/type/Message"
+import { ToolSuggestionCard } from "@/components/custom/agent-space/ToolSuggestionCard"
 
 
 
@@ -49,6 +60,7 @@ function AppSidebar() {
 
   const { data } = useSession();
   const path = usePathname();
+  const currentAgentId = getAgentIdFromPath(path);
 
   const userInitials = data?.user?.name
     ?.split(" ")
@@ -99,12 +111,12 @@ function AppSidebar() {
           <SidebarGroupLabel>Your Agents</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
-              {agents?.map((agent, index) => (
-                <Link href={'/workspace/' + agent.agentId}>
-                  <SidebarMenuItem key={agent.name}>
+              {agents?.map((agent) => (
+                <Link href={'/workspace/' + agent.agentId} key={agent.agentId}>
+                  <SidebarMenuItem>
                     <SidebarMenuButton
                       className="h-10 gap-2.5 rounded-lg"
-                      isActive={index === 0}
+                      isActive={agent.agentId === currentAgentId}
                       tooltip={agent.name}
                     >
                       <Avatar size="sm" className="size-6">
@@ -124,13 +136,7 @@ function AppSidebar() {
       <SidebarFooter className="gap-3 px-3 py-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className="h-9 gap-2 rounded-lg"
-              tooltip="Marketplace"
-            >
-              <StoreIcon className="size-4" />
-              <span>Marketplace</span>
-            </SidebarMenuButton>
+            <MarketplaceDialog agentId={currentAgentId} />
           </SidebarMenuItem>
         </SidebarMenu>
 
@@ -197,6 +203,172 @@ function AppSidebar() {
         </Popover>
       </SidebarFooter>
     </Sidebar>
+  )
+}
+
+function getAgentIdFromPath(path: string | null) {
+  const match = path?.match(/^\/workspace\/([^/]+)/)
+  const agentId = match?.[1]
+
+  if (!agentId || agentId === "create-agent") return null
+
+  return decodeURIComponent(agentId)
+}
+
+function MarketplaceDialog({ agentId }: { agentId: string | null }) {
+  const [tools, setTools] = useState<ToolSuggestionCardData[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open || !agentId) return
+
+    let isMounted = true
+    setIsLoading(true)
+
+    axios
+      .get<{ tools: ToolSuggestionCardData[] }>("/api/tools/status", {
+        params: { agentId },
+      })
+      .then(({ data }) => {
+        if (isMounted) setTools(data.tools)
+      })
+      .catch(() => {
+        if (isMounted) setTools([])
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [agentId, open])
+
+  const updateConnection = (slug: string, isConnected: boolean) => {
+    setTools((current) =>
+      current.map((tool) =>
+        tool.slug.toLowerCase() === slug.toLowerCase()
+          ? { ...tool, isConnected }
+          : tool
+      )
+    )
+  }
+
+  const connectedTools = tools.filter((tool) => tool.isConnected)
+  const availableTools = tools.filter((tool) => !tool.isConnected)
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <SidebarMenuButton
+            className="h-9 gap-2 rounded-lg"
+            tooltip="Marketplace"
+          />
+        }
+      >
+        <StoreIcon className="size-4" />
+        <span>Marketplace</span>
+      </DialogTrigger>
+
+      <DialogContent className="max-h-[86vh] overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="border-b px-6 py-5">
+          <DialogTitle className="flex items-center gap-2">
+            <StoreIcon className="size-5" />
+            Marketplace
+          </DialogTitle>
+          <DialogDescription>
+            Connect tools this agent can use, or disconnect accounts you no longer want available.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[calc(86vh-112px)] overflow-y-auto px-6 py-5">
+          {!agentId ? (
+            <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
+              Open an agent to manage marketplace tools for it.
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center rounded-lg border p-10 text-muted-foreground">
+              <LoaderCircleIcon className="size-5 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <MarketplaceSection
+                title="Connected tools"
+                description="Accounts currently connected and ready for this agent."
+                emptyIcon={CheckCircle2Icon}
+                emptyText="No tools are connected yet."
+                agentId={agentId}
+                tools={connectedTools}
+                onConnectionChange={updateConnection}
+              />
+              <MarketplaceSection
+                title="Available tools"
+                description="Connect additional apps and services to expand what this agent can do."
+                emptyIcon={WrenchIcon}
+                emptyText="No additional tools are available."
+                agentId={agentId}
+                tools={availableTools}
+                onConnectionChange={updateConnection}
+              />
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MarketplaceSection({
+  title,
+  description,
+  emptyIcon: EmptyIcon,
+  emptyText,
+  agentId,
+  tools,
+  onConnectionChange,
+}: {
+  title: string
+  description: string
+  emptyIcon: typeof WrenchIcon
+  emptyText: string
+  agentId: string
+  tools: ToolSuggestionCardData[]
+  onConnectionChange: (slug: string, isConnected: boolean) => void
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+          {tools.length}
+        </span>
+      </div>
+
+      {tools.length === 0 ? (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+          <EmptyIcon className="size-4" />
+          {emptyText}
+        </div>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {tools.map((tool) => (
+            <ToolSuggestionCard
+              key={tool.slug}
+              agentId={agentId}
+              tool={tool}
+              onConnectionChange={onConnectionChange}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
