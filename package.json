@@ -16,6 +16,7 @@
     "@base-ui/react": "^1.7.0",
     "@composio/core": "^0.17.0",
     "@composio/openai-agents": "^0.10.1",
+    "@e2b/desktop": "^2.2.3",
     "@openai/agents": "^0.18.0",
     "@shadcn/react": "^0.3.1",
     "axios": "^1.20.0",

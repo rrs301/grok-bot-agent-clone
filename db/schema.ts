@@ -16,6 +16,10 @@ export const AgentConfig = pgTable('agentConfig', {
   agentImage: text('agentImage'),
   tools: jsonb('tools'),
   composioSessionId: varchar('composioSessionId'),
+  e2bSandboxId: varchar('e2bSandboxId'),
+  e2bSandboxStatus: varchar('e2bSandboxStatus', { length: 32 }).default('inactive'),
+  e2bLastActiveAt: timestamp("e2b_last_active_at", { withTimezone: true }),
+  e2bPausedAt: timestamp("e2b_paused_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   userEmail: text('userEmail').notNull().references(() => users.email)
 })

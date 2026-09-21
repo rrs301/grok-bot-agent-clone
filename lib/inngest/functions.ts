@@ -17,6 +17,14 @@ type RoutineRunEvent = {
   trigger?: 'scheduled' | 'manual';
 };
 
+type VmDesktopRunEvent = {
+  runId: string;
+  agentId: string;
+  userEmail: string;
+  task: string;
+  timezone?: string;
+};
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Routine execution failed';
 }
@@ -25,16 +33,49 @@ function getExecutionId(routineId: string, scheduledFor: Date) {
   return `${routineId}:${scheduledFor.getTime()}`;
 }
 
-function createRoutineChatResponse(message: string) {
+function createRoutineChatResponse(
+  message: string,
+  intent: 'conversation' | 'immediate_action' | 'routine' = 'routine'
+) {
   return agentResponseSchema.parse({
     type: 'message',
-    intent: 'routine',
+    intent,
     message,
     questions: [],
     suggestedTools: [],
     routine: null,
     confirmation: null,
   });
+}
+
+function getVmDesktopRunEventData(event: unknown): VmDesktopRunEvent | null {
+  if (!event || typeof event !== 'object') return null;
+
+  const data = 'data' in event ? event.data : null;
+  if (!data || typeof data !== 'object') return null;
+
+  const runId = 'runId' in data ? data.runId : null;
+  const agentId = 'agentId' in data ? data.agentId : null;
+  const userEmail = 'userEmail' in data ? data.userEmail : null;
+  const task = 'task' in data ? data.task : null;
+  const timezone = 'timezone' in data ? data.timezone : undefined;
+
+  if (
+    typeof runId !== 'string' ||
+    typeof agentId !== 'string' ||
+    typeof userEmail !== 'string' ||
+    typeof task !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    runId,
+    agentId,
+    userEmail,
+    task,
+    timezone: typeof timezone === 'string' && timezone ? timezone : 'UTC',
+  };
 }
 
 function getRunEventData(event: unknown): RoutineRunEvent | null {
@@ -391,18 +432,26 @@ export const executeRoutineExecution = inngest.createFunction(
     });
 
     const result = await step.run('execute-agent-tool-workflow', async () => {
-      const composioSession = await getOrCreateAgentSession(
-        loaded.agent,
-        loaded.routine.userEmail,
-        toolSlugs
-      );
-      const tools = await composioSession.tools();
+      const tools = toolSlugs.length > 0
+        ? await (async () => {
+          const composioSession = await getOrCreateAgentSession(
+            loaded.agent,
+            loaded.routine.userEmail,
+            toolSlugs
+          );
+          return composioSession.tools();
+        })()
+        : [];
 
       const agentResult = await executeRoutine(
         loaded.agent.name,
         loaded.draft.instructions,
         tools,
-        loaded.draft.schedule.timezone
+        loaded.draft.schedule.timezone,
+        {
+          agentId: loaded.routine.agentId,
+          userEmail: loaded.routine.userEmail,
+        }
       );
 
       if (agentResult.status === 'failed') {
@@ -478,5 +527,84 @@ export const executeRoutineExecution = inngest.createFunction(
     });
 
     return completion;
+  }
+);
+
+/** Execute an ad hoc VM desktop task in the background and append the summary to chat history. */
+export const executeVmDesktopTask = inngest.createFunction(
+  {
+    id: 'execute-ai-agent-vm-desktop-task',
+    name: 'Execute AI Agent VM Desktop Task',
+    retries: 1,
+    concurrency: {
+      limit: 1,
+      key: 'event.data.agentId',
+    },
+  },
+  { event: 'agent/vm-desktop.run' },
+  async ({ event, step }) => {
+    const runEvent = getVmDesktopRunEventData(event);
+    if (!runEvent) {
+      throw new NonRetriableError('Invalid VM desktop run event');
+    }
+
+    const [agent] = await step.run('load-agent', async () => {
+      return db
+        .select()
+        .from(AgentConfig)
+        .where(
+          and(
+            eq(AgentConfig.agentId, runEvent.agentId),
+            eq(AgentConfig.userEmail, runEvent.userEmail)
+          )
+        )
+        .limit(1);
+    });
+
+    if (!agent) {
+      throw new NonRetriableError('Agent not found');
+    }
+
+    const result = await step.run('execute-vm-desktop-task', async () => {
+      return executeRoutine(
+        agent.name,
+        [
+          'Use the persistent VM desktop and Chrome browser to complete this one-time task.',
+          'If a login, MFA, captcha, paywall, or missing credential blocks progress, stop and report that the user must open the VM desktop and sign in there.',
+          '',
+          runEvent.task,
+        ].join('\n'),
+        [],
+        runEvent.timezone ?? 'UTC',
+        {
+          agentId: runEvent.agentId,
+          userEmail: runEvent.userEmail,
+        }
+      );
+    });
+
+    await step.run('append-vm-result-to-chat-history', async () => {
+      const message = [
+        result.status === 'completed'
+          ? 'VM desktop task completed.'
+          : 'VM desktop task needs attention.',
+        '',
+        result.summary,
+        result.error ? `\n${result.error}` : '',
+      ].join('\n').trim();
+
+      await appendAgentChatHistoryMessage({
+        agentId: runEvent.agentId,
+        userEmail: runEvent.userEmail,
+        content: message,
+        timezone: runEvent.timezone,
+        response: createRoutineChatResponse(message, 'immediate_action'),
+        toolCards: [],
+        status: result.status,
+        error: result.error,
+      });
+    });
+
+    return result;
   }
 );
