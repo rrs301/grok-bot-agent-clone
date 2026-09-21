@@ -81,6 +81,40 @@ export const RoutineExecutions = pgTable("routine_executions", {
   ),
 ]);
 
+export const AgentChatHistory = pgTable("agent_chat_history", {
+  id: varchar("id").primaryKey(),
+  agentId: varchar("agent_id")
+    .notNull()
+    .references(() => AgentConfig.agentId, { onDelete: "cascade" }),
+  userEmail: text("user_email")
+    .notNull()
+    .references(() => users.email, { onDelete: "cascade" }),
+  timezone: varchar("timezone", { length: 128 }),
+  editingRoutineId: varchar("editing_routine_id"),
+  latestUserMessage: text("latest_user_message"),
+  agentMessage: text("agent_message"),
+  requestMessages: jsonb("request_messages").notNull(),
+  response: jsonb("response"),
+  toolCards: jsonb("tool_cards"),
+  status: varchar("status", { length: 32 }).default("completed").notNull(),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("agent_chat_history_agent_user_unique").on(
+    table.agentId,
+    table.userEmail
+  ),
+  index("agent_chat_history_agent_updated_idx").on(
+    table.agentId,
+    table.updatedAt
+  ),
+  index("agent_chat_history_user_updated_idx").on(
+    table.userEmail,
+    table.updatedAt
+  ),
+]);
+
 export const AgentWorkflows = pgTable("agent_workflows", {
   id: varchar("id").primaryKey(),
   agentId: varchar("agent_id")
