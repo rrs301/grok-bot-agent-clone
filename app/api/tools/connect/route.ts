@@ -1,6 +1,6 @@
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { AgentConfig, db, Tools } from "@/db"
-import { composio } from "@/lib/composio/composio"
+import { getOrCreateAgentSession } from "@/lib/composio/service"
 import { and, eq } from "drizzle-orm"
 import { getServerSession } from "next-auth"
 import { NextRequest, NextResponse } from "next/server"
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const { agentId, toolkitSlug } = parsed.data
   const [agent] = await db
-    .select({ agentId: AgentConfig.agentId })
+    .select()
     .from(AgentConfig)
     .where(
       and(
@@ -49,9 +49,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const composioSession = await composio.sessions.create(session.user.email, {
-      toolkits: [tool.slug],
-    })
+    const composioSession = await getOrCreateAgentSession(
+      agent,
+      session.user.email,
+      [tool.slug]
+    )
     const request = await composioSession.authorize(tool.slug, {
       callbackUrl: `${req.nextUrl.origin}/workspace/${encodeURIComponent(agentId)}`,
     })

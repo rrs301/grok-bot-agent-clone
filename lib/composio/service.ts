@@ -1,36 +1,53 @@
-import { AgentConfigType } from "@/type/Agent";
 import { composio } from "./composio";
 import { AgentConfig, db } from "@/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
+type AgentSessionConfig = {
+    agentId: string;
+    composioSessionId?: string | null;
+    tools?: unknown;
+};
 
-export async function getOrCreateAgentSession(agentConfig: AgentConfigType, userEmail: string) {
-    if (agentConfig?.composioSessionId) {
-        try {
-            const session = await composio.sessions.use(agentConfig?.composioSessionId)
-            if (session) return session
-        } catch (e) {
-            console.warn('Recreate new session')
-        }
+function getToolSlugs(tools: unknown) {
+    if (!Array.isArray(tools)) return [];
+
+    return tools.filter((tool): tool is string => typeof tool === "string" && tool.length > 0);
+}
+
+export async function getOrCreateAgentSession(
+    agentConfig: AgentSessionConfig,
+    userEmail: string,
+    requiredToolSlugs: string[] = []
+) {
+    const toolSlugs = [
+        ...new Set([...getToolSlugs(agentConfig.tools), ...requiredToolSlugs]),
+    ];
+
+    if (agentConfig.composioSessionId) {
+        return composio.sessions.use(agentConfig.composioSessionId);
     }
 
-    const toolSlug = agentConfig?.tools || [];
-
-    const connectedAccounts = await getActiveConnectedAccounts(userEmail, toolSlug);
+    const connectedAccounts = await getActiveConnectedAccounts(userEmail, toolSlugs);
 
     const session = await composio.sessions.create(userEmail, {
-        toolkits: toolSlug.length > 0 ? toolSlug : undefined,
+        toolkits: toolSlugs.length > 0 ? toolSlugs : undefined,
         connectedAccounts: Object.keys(connectedAccounts).length > 0 ? connectedAccounts : undefined
-    })
+    });
 
-    //save sessionId to DB
-    const result = await db.update(AgentConfig).set({
-        composioSessionId: (session as any).sessionId || session.sessionId
-    }).where(eq(AgentConfig.agentId, agentConfig.agentId));
+    const [updatedAgent] = await db.update(AgentConfig).set({
+        composioSessionId: session.sessionId
+    }).where(
+        and(
+            eq(AgentConfig.agentId, agentConfig.agentId),
+            eq(AgentConfig.userEmail, userEmail)
+        )
+    ).returning({ composioSessionId: AgentConfig.composioSessionId });
 
+    if (updatedAgent?.composioSessionId !== session.sessionId) {
+        throw new Error("Unable to save the Composio session for this agent");
+    }
 
     return session;
-
 }
 
 
@@ -57,7 +74,4 @@ export const getActiveConnectedAccounts = async (userEmail: string, toolSlugs: s
         return {};
     }
 };
-
-
-
 
