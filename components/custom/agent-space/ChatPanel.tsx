@@ -20,14 +20,39 @@ export function ChatPanel() {
   const [editingRoutine, setEditingRoutine] = useState<SavedRoutine | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { agentConfig, setAgentConfig } = useContext(AgentConfigContext);
-  const [messages, setMessages] = useState<MessageType[]>([
+  const getWelcomeMessages = (): MessageType[] => [
     {
       id: 'welcome',
       role: 'agent',
       content: `Hello! I am Agent, How can I help you today?`,
       time: new Date().toString()
     }
-  ]);
+  ];
+  const [messages, setMessages] = useState<MessageType[]>(getWelcomeMessages);
+
+  useEffect(() => {
+    if (!agentId) return
+
+    let ignore = false
+    axios
+      .get<{ history: { messages: MessageType[] } | null }>('/api/agent/chat', {
+        params: { agentId },
+      })
+      .then(({ data }) => {
+        if (ignore) return
+        const savedMessages = Array.isArray(data.history?.messages)
+          ? data.history.messages
+          : []
+        setMessages(savedMessages.length > 0 ? savedMessages : getWelcomeMessages())
+      })
+      .catch(() => {
+        if (!ignore) setMessages(getWelcomeMessages())
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [agentId])
 
   useEffect(() => {
     const startRoutineEdit = (event: Event) => {
@@ -246,5 +271,4 @@ function AgentMessage({ children, time, agentAvatar, agentName }: { children: Re
     </div>
   )
 }
-
 

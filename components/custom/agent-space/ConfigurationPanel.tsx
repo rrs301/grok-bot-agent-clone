@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarClock, Save, Settings2, Shuffle, SlidersHorizontal, Wrench } from "lucide-react"
+import { CalendarClock, History, Save, Settings2, Shuffle, SlidersHorizontal, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,7 @@ import { AgentSettingsTab } from "./AgentSettingsTab"
 import { ScheduleTab } from "./ScheduleTab"
 import { SettingsTab } from "./SettingsTab"
 import { ToolsTab } from "./ToolsTab"
+import { RoutineExecutionHistoryTab } from "./RoutineExecutionHistoryTab"
 import { useContext } from "react"
 import { AgentConfigContext } from "@/context/AgentConfigContext"
 import { toast } from "@/components/ui/toast"
@@ -21,6 +22,7 @@ const tabs = [
   { value: "settings", label: "Settings", icon: Settings2 },
   { value: "tools", label: "Tools", icon: Wrench },
   { value: "schedule", label: "Schedule", icon: CalendarClock },
+  { value: "routine-history", label: "Routine Execution History", icon: History },
   { value: "agent-settings", label: "Agent Settings", icon: SlidersHorizontal },
 ]
 
@@ -93,6 +95,7 @@ export function ConfigurationPanel() {
             <TabsContent value="settings"><SettingsTab /></TabsContent>
             <TabsContent value="tools"><ToolsTab /></TabsContent>
             <TabsContent value="schedule"><ScheduleTab /></TabsContent>
+            <TabsContent value="routine-history"><RoutineExecutionHistoryTab /></TabsContent>
             <TabsContent value="agent-settings"><AgentSettingsTab /></TabsContent>
           </div>
         </Tabs>

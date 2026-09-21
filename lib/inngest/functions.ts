@@ -1,6 +1,7 @@
 import { AgentConfig, db, RoutineExecutions, Routines } from '@/db';
+import { appendAgentChatHistoryMessage } from '@/lib/agent-chat-history';
 import { getActiveConnectedAccounts, getOrCreateAgentSession } from '@/lib/composio/service';
-import { routineSchema } from '@/lib/openai/agent-response-schema';
+import { agentResponseSchema, routineSchema } from '@/lib/openai/agent-response-schema';
 import { executeRoutine } from '@/lib/openai/openai-agent';
 import { getNextRunAt, isRoutineScheduledAt } from '@/lib/routines/schedule';
 import { and, eq, inArray, sql } from 'drizzle-orm';
@@ -22,6 +23,18 @@ function errorMessage(error: unknown) {
 
 function getExecutionId(routineId: string, scheduledFor: Date) {
   return `${routineId}:${scheduledFor.getTime()}`;
+}
+
+function createRoutineChatResponse(message: string) {
+  return agentResponseSchema.parse({
+    type: 'message',
+    intent: 'routine',
+    message,
+    questions: [],
+    suggestedTools: [],
+    routine: null,
+    confirmation: null,
+  });
 }
 
 function getRunEventData(event: unknown): RoutineRunEvent | null {
@@ -179,7 +192,13 @@ export const executeRoutineExecution = inngest.createFunction(
       await step.run('record-terminal-failure', async () => {
         const scheduledFor = new Date(runEvent.scheduledFor);
         const [routine] = await db
-          .select({ schedule: Routines.schedule, nextRunAt: Routines.nextRunAt })
+          .select({
+            agentId: Routines.agentId,
+            userEmail: Routines.userEmail,
+            name: Routines.name,
+            schedule: Routines.schedule,
+            nextRunAt: Routines.nextRunAt,
+          })
           .from(Routines)
           .where(eq(Routines.id, runEvent.routineId))
           .limit(1);
@@ -202,6 +221,24 @@ export const executeRoutineExecution = inngest.createFunction(
         if (!routine || Number.isNaN(scheduledFor.getTime())) return;
 
         const parsedSchedule = routineSchema.shape.schedule.safeParse(routine.schedule);
+        const timezone = parsedSchedule.success ? parsedSchedule.data.timezone : null;
+        const failureMessage = [
+          `Routine "${routine.name}" failed.`,
+          '',
+          errorMessage(error),
+        ].join('\n');
+
+        await appendAgentChatHistoryMessage({
+          agentId: routine.agentId,
+          userEmail: routine.userEmail,
+          content: failureMessage,
+          timezone,
+          response: createRoutineChatResponse(failureMessage),
+          toolCards: [],
+          status: 'failed',
+          error: errorMessage(error),
+        });
+
         if (!parsedSchedule.success) return;
 
         const nextRunAt = parsedSchedule.data.frequency === 'once'
@@ -419,6 +456,25 @@ export const executeRoutineExecution = inngest.createFunction(
         result,
         nextRunAt: nextRunAt?.toISOString() ?? null,
       };
+    });
+
+    await step.run('append-result-to-chat-history', async () => {
+      const message = [
+        `Routine "${loaded.routine.name}" completed.`,
+        '',
+        result.summary,
+      ].join('\n');
+
+      await appendAgentChatHistoryMessage({
+        agentId: loaded.routine.agentId,
+        userEmail: loaded.routine.userEmail,
+        content: message,
+        timezone: loaded.draft.schedule.timezone,
+        response: createRoutineChatResponse(message),
+        toolCards: [],
+        status: 'completed',
+        error: null,
+      });
     });
 
     return completion;

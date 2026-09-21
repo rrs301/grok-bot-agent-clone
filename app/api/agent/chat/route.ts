@@ -9,9 +9,48 @@ import { setAgentToolConnection } from "@/lib/agent-tools";
 import { getActiveConnectedAccounts, getOrCreateAgentSession } from "@/lib/composio/service";
 import { getAnsweredClarificationIds } from "@/lib/openai/clarification-context";
 import { triggerRoutineRunNow } from "@/lib/routines/run-now";
+import { getAgentChatHistory, saveAgentChatHistory } from "@/lib/agent-chat-history";
 
 const routineLanguage = /\b(every|everyday|daily|weekly|monthly|hourly|recurring|schedule(?:d)?|routine|automation|automatically|monitor|digest|each\s+(?:day|morning|evening|week|month)|remind\s+me|tomorrow|tonight)\b/i;
 const runRoutineLanguage = /\b(?:run|execute|start|trigger|launch)\b[\s\S]{0,80}\b(?:routine|automation)\b|\b(?:routine|automation)\b[\s\S]{0,80}\b(?:now|run|execute|start|trigger|launch)\b/i;
+
+export async function GET(req: NextRequest) {
+    const session = await getServerSession(authOptions);
+    const agentId = req.nextUrl.searchParams.get("agentId");
+
+    if (!session?.user?.email) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!agentId) {
+        return NextResponse.json({ error: "Missing agentId" }, { status: 400 });
+    }
+
+    const [agentConfig] = await db.select({ agentId: AgentConfig.agentId }).from(AgentConfig)
+        .where(
+            and(
+                eq(AgentConfig.agentId, agentId),
+                eq(AgentConfig.userEmail, session.user.email)
+            )
+        )
+        .limit(1);
+
+    if (!agentConfig) {
+        return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
+
+    const history = await getAgentChatHistory(agentId, session.user.email);
+
+    return NextResponse.json({
+        history: history
+            ? {
+                messages: history.requestMessages,
+                timezone: history.timezone,
+                updatedAt: history.updatedAt,
+            }
+            : null,
+    });
+}
 
 function isRoutinePlanningConversation(messages: any[]) {
     const latestUserMessage = [...messages]
@@ -138,6 +177,28 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
+    const requestTimezone = typeof timezone === "string" && timezone ? timezone : "UTC";
+    const persistChatResponse = async (
+        body: { response?: unknown; toolCards?: unknown },
+        init?: ResponseInit
+    ) => {
+        try {
+            await saveAgentChatHistory({
+                agentId,
+                userEmail,
+                messages,
+                timezone: requestTimezone,
+                editingRoutineId: typeof editingRoutineId === "string" ? editingRoutineId : null,
+                response: body.response,
+                toolCards: body.toolCards,
+            });
+        } catch (error) {
+            console.error("Failed to save agent chat history", error);
+        }
+
+        return NextResponse.json(body, init);
+    };
+
     const latestUserText = [...messages]
         .reverse()
         .find((message) => message?.role === "user" && typeof message?.content === "string")
@@ -155,7 +216,7 @@ export async function POST(req: NextRequest) {
             );
 
         if (savedRoutines.length === 0) {
-            return NextResponse.json({
+            return persistChatResponse({
                 response: agentResponseSchema.parse({
                     type: "message",
                     intent: "immediate_action",
@@ -171,7 +232,7 @@ export async function POST(req: NextRequest) {
 
         const { routine, candidates } = findRoutineForImmediateRun(latestUserText, savedRoutines);
         if (!routine) {
-            return NextResponse.json({
+            return persistChatResponse({
                 response: agentResponseSchema.parse({
                     type: "clarification",
                     intent: "immediate_action",
@@ -200,7 +261,7 @@ export async function POST(req: NextRequest) {
         });
 
         if ("error" in runResult) {
-            return NextResponse.json({
+            return persistChatResponse({
                 response: agentResponseSchema.parse({
                     type: "message",
                     intent: "immediate_action",
@@ -214,7 +275,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        return NextResponse.json({
+        return persistChatResponse({
             response: agentResponseSchema.parse({
                 type: "message",
                 intent: "immediate_action",
@@ -386,7 +447,7 @@ export async function POST(req: NextRequest) {
         if (planningOnly && !hasTime) {
             questions.push({
                 id: "run_time",
-                question: `What time should this routine run in ${typeof timezone === "string" && timezone ? timezone : "your timezone"}?`,
+                question: `What time should this routine run in ${requestTimezone || "your timezone"}?`,
                 options: [],
             });
         }
@@ -401,7 +462,7 @@ export async function POST(req: NextRequest) {
             isEnabled: tool.isActive !== false,
         }));
 
-        return NextResponse.json({
+        return persistChatResponse({
             response: agentResponseSchema.parse({
                 type: disconnectedTools.length > 0 && questions.length === 0
                     ? "tool_connection"
@@ -448,7 +509,7 @@ export async function POST(req: NextRequest) {
         }, pendingApproval: null }
         : await executeAgentChat(agentConfig.name, agentConfig?.description ?? '',
             messages, agentComposioTools, tools, connectedToolSlugs,
-            typeof timezone === "string" && timezone ? timezone : "UTC",
+            requestTimezone,
             planningOnly,
             editingRoutine);
 
@@ -464,7 +525,7 @@ export async function POST(req: NextRequest) {
             state: {
                 snapshot: execution.pendingApproval.state,
                 actions,
-                timezone: typeof timezone === "string" && timezone ? timezone : "UTC",
+                timezone: requestTimezone,
             },
         });
         agentResponse = agentResponseSchema.parse({
@@ -539,7 +600,7 @@ export async function POST(req: NextRequest) {
         && !routineQuestions.some((question) => /\btime\b|what hour/i.test(question.question))) {
         routineQuestions.push({
             id: "run_time",
-            question: `What time should this routine run in ${typeof timezone === "string" && timezone ? timezone : "your timezone"}?`,
+            question: `What time should this routine run in ${requestTimezone || "your timezone"}?`,
             options: [],
         });
     }
@@ -681,7 +742,7 @@ export async function POST(req: NextRequest) {
     };
 
 
-    return NextResponse.json(
+    return persistChatResponse(
         {
             response: normalizedResponse,
             toolCards: routineToolCards
