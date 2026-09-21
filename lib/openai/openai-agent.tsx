@@ -23,7 +23,9 @@ export type Message = {
 };
 
 const routineExecutionSchema = z.object({
+    status: z.enum(["completed", "failed"]),
     summary: z.string(),
+    error: z.string().nullable().default(null),
 });
 
 export const createAgent = (
@@ -163,39 +165,29 @@ ${routineInstructions}
 
 Execution rules:
 - This is an execution run, not a planning conversation. Complete the requested work using the available Composio tools.
-- For each distinct operation, call COMPOSIO_SEARCH_TOOLS once, then execute the returned action with COMPOSIO_MULTI_EXECUTE_TOOL.
+- For each distinct operation, call COMPOSIO_SEARCH_TOOLS with a precise use case that preserves the requested action (for example, "post a new message to a Slack channel", not merely "send a Slack message"). Use the returned primary tool that matches that action.
+- Review the complete input schema before execution. If the search result provides only a schemaRef, call COMPOSIO_GET_TOOL_SCHEMAS before COMPOSIO_MULTI_EXECUTE_TOOL. Include every required field using the exact schema field names.
+- Pass the workflow session_id returned by COMPOSIO_SEARCH_TOOLS to every subsequent Composio meta-tool call.
+- For a new top-level Slack channel post, use SLACK_SEND_MESSAGE with channel and markdown_text, and omit thread_ts. Do not use a reply, thread, update, reaction, or delete action, and do not use any action requiring message_ts.
+- Use Slack thread/reply actions only when the routine explicitly requests a reply to an existing message and a real parent message timestamp was supplied or retrieved.
 - Never repeat the same tool call with identical arguments.
 - Carry data returned by source tools into destination tools exactly as the routine requires.
 - Do not invent retrieved content, destinations, recipients, identifiers, or successful actions.
-- When all actions finish, return a concise summary of what was completed.
-- If an action fails, stop retrying the identical call and return a concise failure summary.
+- If a tool rejects the request before performing an external action because fields are missing or invalid, correct the tool choice or arguments once using the returned schema. Never retry an ambiguous failure that may have happened after the external action.
+- When every required action succeeds, return status="completed", a concise summary, and error=null.
+- If any required action fails, stop retrying the identical call and return status="failed", a concise failure summary, and the actual error.
 `.trim(),
     });
 
-    let routineResult;
-    try {
-        routineResult = await run(agent, "Run the approved routine now.", {
-            maxTurns: 12,
-            errorHandlers: {
-                maxTurns: () => ({
-                    finalOutput: {
-                        summary: "The routine stopped because its tool workflow did not finish.",
-                    },
-                }),
-            },
-        });
-    } catch (error) {
-        console.error("OpenAI agent routine run failed", { name, error });
-        return routineExecutionSchema.parse({ summary: "The routine execution failed to complete." });
+    const routineResult = await run(agent, "Run the approved routine now.", {
+        maxTurns: 12,
+    });
+
+    if (!routineResult?.finalOutput) {
+        throw new Error("The routine execution did not return a result");
     }
 
-    try {
-        const finalOutput = routineResult?.finalOutput ?? { summary: "The routine execution did not return a result." };
-        return routineExecutionSchema.parse(finalOutput);
-    } catch (error) {
-        console.error("Failed to parse routine run result", { name, error, routineResult });
-        return routineExecutionSchema.parse({ summary: "The routine execution did not complete successfully." });
-    }
+    return routineExecutionSchema.parse(routineResult.finalOutput);
 };
 
 const serializeResponseForHistory = (response: AgentResponse) => {

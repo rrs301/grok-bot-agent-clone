@@ -18,11 +18,22 @@ function parseDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) throw new Error("Invalid routine start date");
 
-  return {
+  const parsed = {
     year: Number(match[1]),
     month: Number(match[2]),
     day: Number(match[3]),
   };
+
+  const date = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
+  if (
+    date.getUTCFullYear() !== parsed.year ||
+    date.getUTCMonth() + 1 !== parsed.month ||
+    date.getUTCDate() !== parsed.day
+  ) {
+    throw new Error("Invalid routine start date");
+  }
+
+  return parsed;
 }
 
 function parseTime(value: string) {
@@ -93,6 +104,26 @@ function zonedDateTimeToUtc(
     candidate -= representedUtc - desiredUtc;
   }
 
+  const resolvedParts = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(candidate))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  );
+
+  // A local time inside a daylight-saving gap does not exist. The offset
+  // correction above otherwise oscillates around that gap and could schedule
+  // the run an hour early or late, so skip that calendar occurrence.
+  if (
+    resolvedParts.year !== date.year ||
+    resolvedParts.month !== date.month ||
+    resolvedParts.day !== date.day ||
+    resolvedParts.hour !== time.hour ||
+    resolvedParts.minute !== time.minute
+  ) {
+    return null;
+  }
+
   return new Date(candidate);
 }
 
@@ -136,9 +167,26 @@ export function getNextRunAt(schedule: RoutineSchedule, after = new Date()) {
     if (!isEligibleDate(normalizedSchedule, candidateDate, start)) continue;
 
     const candidate = zonedDateTimeToUtc(candidateDate, time, normalizedSchedule.timezone);
+    if (!candidate) {
+      if (normalizedSchedule.frequency === "once") return null;
+      continue;
+    }
     if (candidate.getTime() > after.getTime()) return candidate;
     if (normalizedSchedule.frequency === "once") return null;
   }
 
   return null;
+}
+
+/** Verify an event against schedule data instead of trusting stale DB state. */
+export function isRoutineScheduledAt(
+  schedule: RoutineSchedule,
+  scheduledFor: Date
+) {
+  const occurrence = getNextRunAt(
+    schedule,
+    new Date(scheduledFor.getTime() - 1)
+  );
+
+  return occurrence?.getTime() === scheduledFor.getTime();
 }

@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -55,6 +55,31 @@ export const Routines = pgTable("routines", {
     .defaultNow()
     .notNull(),
 });
+
+export const RoutineExecutions = pgTable("routine_executions", {
+  id: varchar("id").primaryKey(),
+  routineId: varchar("routine_id")
+    .notNull()
+    .references(() => Routines.id, { onDelete: "cascade" }),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+  status: varchar("status", { length: 32 }).default("queued").notNull(),
+  result: jsonb("result"),
+  error: text("error"),
+  attempts: integer("attempts").default(0).notNull(),
+  queuedAt: timestamp("queued_at", { withTimezone: true }).defaultNow().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("routine_executions_routine_scheduled_unique").on(
+    table.routineId,
+    table.scheduledFor
+  ),
+  index("routine_executions_status_scheduled_idx").on(
+    table.status,
+    table.scheduledFor
+  ),
+]);
 
 export const AgentWorkflows = pgTable("agent_workflows", {
   id: varchar("id").primaryKey(),
