@@ -32,14 +32,29 @@ export const routineSchema = z.object({
 });
 
 export const agentResponseSchema = z.object({
-  type: z.enum(["message", "clarification", "routine"]),
+  type: z.enum(["message", "tool_connection", "clarification", "confirmation", "routine"]),
+  intent: z.enum(["conversation", "immediate_action", "routine"]),
   message: z.string(),
   questions: z.array(z.object({
     id: z.string(),
     question: z.string(),
+    options: z.array(z.object({
+      label: z.string(),
+      value: z.string(),
+      description: z.string(),
+    })).default([]),
   })),
   suggestedTools: z.array(toolSuggestionSchema).default([]),
   routine: routineSchema.nullable(),
+  confirmation: z.object({
+    workflowId: z.string(),
+    title: z.string(),
+    description: z.string(),
+    actions: z.array(z.object({
+      tool: z.string(),
+      summary: z.string(),
+    })),
+  }).nullable().default(null),
 });
 
 export type AgentResponse = z.infer<typeof agentResponseSchema>;

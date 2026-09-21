@@ -3,6 +3,7 @@ import { inngest } from '@/lib/inngest/client';
 import {
   processTaskBackgroundJob,
   dailySyncScheduledJob,
+  runRoutine,
 } from '@/lib/inngest/functions';
 
 // Create an API route that serves Inngest functions
@@ -11,5 +12,6 @@ export const { GET, POST, PUT } = serve({
   functions: [
     processTaskBackgroundJob,
     dailySyncScheduledJob,
+    runRoutine,
   ],
 });
