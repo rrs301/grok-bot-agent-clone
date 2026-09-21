@@ -49,19 +49,23 @@ export async function GET(req: NextRequest) {
         )
     )
 
-    const connectedTools = tools
-      .filter((tool) => Boolean(accounts[tool.slug.toLowerCase()]?.length))
-      .map((tool) => ({
-        slug: tool.slug,
-        name: tool.name,
-        description: tool.description,
-        reason: "Allow this agent to use the app on your behalf.",
-        icon: tool.icon,
-        isConnected: true,
-        isEnabled: tool.isActive !== false,
-      }))
+    const toolStatuses = tools
+      .map((tool) => {
+        const isConnected = Boolean(accounts[tool.slug.toLowerCase()]?.length)
 
-    return NextResponse.json({ tools: connectedTools })
+        return {
+          slug: tool.slug,
+          name: tool.name,
+          description: tool.description,
+          reason: "Allow this agent to use the app on your behalf.",
+          icon: tool.icon,
+          isConnected,
+          isEnabled: tool.isActive !== false,
+          category: tool.category,
+        }
+      })
+
+    return NextResponse.json({ tools: toolStatuses })
   }
 
   const [tool] = await db
