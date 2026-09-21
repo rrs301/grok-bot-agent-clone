@@ -1,10 +1,11 @@
-import { Loader, Send } from "lucide-react"
+import { Loader, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { agent } from "./agent-data"
 import { AgentAvatar } from "./AgentAvatar"
 import { MessageType } from "@/type/Message"
-import { useContext, useState } from "react"
+import type { RoutineEditEventDetail, SavedRoutine } from "@/type/Routine"
+import { useContext, useEffect, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import axios from "axios"
 import { toast } from "@/components/ui/toast"
@@ -16,6 +17,8 @@ export function ChatPanel() {
   const [userInput, setUserInput] = useState('');
   const { agentId } = useParams();
   const [loading, setLoading] = useState(false);
+  const [editingRoutine, setEditingRoutine] = useState<SavedRoutine | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const { agentConfig, setAgentConfig } = useContext(AgentConfigContext);
   const [messages, setMessages] = useState<MessageType[]>([
     {
@@ -26,30 +29,70 @@ export function ChatPanel() {
     }
   ]);
 
+  useEffect(() => {
+    const startRoutineEdit = (event: Event) => {
+      const detail = (event as CustomEvent<RoutineEditEventDetail>).detail
+      if (!detail || detail.agentId !== String(agentId)) return
+
+      const routine = detail.routine
+      setEditingRoutine(routine)
+      setUserInput("")
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "agent",
+          content: [
+            `I’m ready to edit **${routine.name}**.`,
+            "",
+            `- Goal: ${routine.goal}`,
+            `- Instructions: ${routine.instructions}`,
+            `- Schedule: ${routine.schedule.frequency} at ${routine.schedule.time} (${routine.schedule.timezone}), starting ${routine.schedule.startDate}`,
+            routine.schedule.weekDays.length > 0
+              ? `- Days: ${routine.schedule.weekDays.join(", ")}`
+              : null,
+            routine.tools.length > 0
+              ? `- Tools: ${routine.tools.map((tool) => tool.name || tool.slug).join(", ")}`
+              : "- Tools: None",
+            "",
+            "What would you like to change?",
+          ].filter(Boolean).join("\n"),
+          time: new Date().toISOString(),
+          editingRoutineId: routine.id,
+        },
+      ])
+      window.setTimeout(() => inputRef.current?.focus(), 0)
+    }
+
+    window.addEventListener("routine-edit-requested", startRoutineEdit)
+    return () => window.removeEventListener("routine-edit-requested", startRoutineEdit)
+  }, [agentId])
+
 
   const handleMessageSend = async () => {
+    const trimmedInput = userInput.trim();
 
-    if (!userInput.trim() || !agentId) {
+    if (!trimmedInput || !agentId) {
       return;
     }
+
     setLoading(true);
     const userMsg: MessageType = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: userInput,
+      content: trimmedInput,
       time: new Date().toLocaleDateString()
     }
 
     const updatedMsgs = [...messages, userMsg];
     setMessages(updatedMsgs);
-    setUserInput('');
-
 
     try {
       const result = await axios.post('/api/agent/chat', {
         agentId: agentId,
         messages: updatedMsgs,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        editingRoutineId: editingRoutine?.id,
       });
 
       console.log(result.data.response);
@@ -59,19 +102,25 @@ export function ChatPanel() {
         content: result.data.response?.message,
         response: result.data.response,
         toolCards: result.data?.toolCards,
+        editingRoutineId: editingRoutine?.id,
         time: new Date().toLocaleDateString()
       }
       setMessages((prev) => [...prev, agentMsg])
-      setLoading(false)
-    } catch (e) {
+      setUserInput('');
+    } catch (error) {
+      const description = axios.isAxiosError(error)
+        ? (typeof error.response?.data?.error === 'string' ? error.response.data.error : 'Please try again in a moment.')
+        : 'Please try again in a moment.';
+
       toast.add({
         type: 'error',
-        title: 'Internal server error'
+        title: 'Unable to send message',
+        description,
       })
+      setUserInput(trimmedInput)
+    } finally {
       setLoading(false)
     }
-
-
   }
 
 
@@ -102,7 +151,25 @@ export function ChatPanel() {
               {msg.role == 'agent' ? <AgentMessage time=""
                 agentAvatar={agentConfig?.agentImage}
                 agentName={agentConfig?.name}
-              ><AgentResponseView message={msg} agentId={String(agentId)} /></AgentMessage>
+              ><AgentResponseView
+                  message={msg}
+                  agentId={String(agentId)}
+                  onSuggestedReply={setUserInput}
+                  onRoutineSaved={(routineId) => {
+                    if (routineId === editingRoutine?.id) setEditingRoutine(null)
+                  }}
+                  onWorkflowResult={(result) => {
+                    if (!result.response) return
+                    setMessages((current) => [...current, {
+                      id: crypto.randomUUID(),
+                      role: "agent",
+                      content: result.response?.message ?? "",
+                      response: result.response,
+                      toolCards: result.toolCards ?? [],
+                      time: new Date().toISOString(),
+                    }])
+                  }}
+                /></AgentMessage>
                 : <UserMessage>{msg.content}</UserMessage>}
             </div>
           ))}
@@ -129,9 +196,26 @@ export function ChatPanel() {
 
 
       <div className="shrink-0 border-t bg-background px-5 py-4 sm:px-7">
+        {editingRoutine && (
+          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3 rounded-lg border bg-muted/50 px-3 py-2 text-xs">
+            <span className="truncate">
+              Editing <strong>{editingRoutine.name}</strong>
+            </span>
+            <Button
+              aria-label="Cancel routine edit"
+              className="size-7 shrink-0"
+              onClick={() => setEditingRoutine(null)}
+              size="icon"
+              variant="ghost"
+            >
+              <X />
+            </Button>
+          </div>
+        )}
         <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-xl border bg-background p-2 shadow-sm focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
           <Textarea aria-label="Message Nova" className="min-h-10 max-h-28 flex-1 resize-none border-0 bg-transparent px-2 py-2 shadow-none focus-visible:border-0 focus-visible:ring-0"
-            placeholder="Ask your agent anything..."
+            ref={inputRef}
+            placeholder={editingRoutine ? "Describe the changes to this routine..." : "Ask your agent anything..."}
             value={userInput}
             onChange={(event) => setUserInput(event.target.value)}
           />
@@ -162,7 +246,5 @@ function AgentMessage({ children, time, agentAvatar, agentName }: { children: Re
     </div>
   )
 }
-
-
 
 

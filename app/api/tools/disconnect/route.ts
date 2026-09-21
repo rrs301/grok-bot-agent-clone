@@ -1,5 +1,6 @@
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { AgentConfig, db, Tools } from "@/db"
+import { setAgentToolConnection } from "@/lib/agent-tools"
 import { composio } from "@/lib/composio/composio"
 import { and, eq } from "drizzle-orm"
 import { getServerSession } from "next-auth"
@@ -25,7 +26,10 @@ export async function POST(req: NextRequest) {
   const { agentId, toolkitSlug } = parsed.data
   const [[agent], [tool]] = await Promise.all([
     db
-      .select({ agentId: AgentConfig.agentId })
+      .select({
+        agentId: AgentConfig.agentId,
+        composioSessionId: AgentConfig.composioSessionId,
+      })
       .from(AgentConfig)
       .where(
         and(
@@ -55,6 +59,21 @@ export async function POST(req: NextRequest) {
     await Promise.all(
       accounts.items.map((account) => composio.connectedAccounts.delete(account.id))
     )
+
+    const remainingTools = await setAgentToolConnection(
+      agentId,
+      session.user.email,
+      tool.slug,
+      false
+    )
+
+    if (agent.composioSessionId && Array.isArray(remainingTools) && remainingTools.length > 0) {
+      const composioSession = await composio.sessions.use(agent.composioSessionId)
+      await composioSession.update({
+        toolkits: remainingTools.filter((slug): slug is string => typeof slug === "string"),
+        connectedAccounts: {},
+      })
+    }
 
     return NextResponse.json({ isConnected: false })
   } catch (error) {
