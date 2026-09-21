@@ -15,6 +15,13 @@
       "when": 1790018493054,
       "tag": "0001_real_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790021582912,
+      "tag": "0002_dear_jean_grey",
+      "breakpoints": true
     }
   ]
 }

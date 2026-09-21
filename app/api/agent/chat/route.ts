@@ -511,7 +511,8 @@ export async function POST(req: NextRequest) {
             messages, agentComposioTools, tools, connectedToolSlugs,
             requestTimezone,
             planningOnly,
-            editingRoutine);
+            editingRoutine,
+            { agentId, userEmail });
 
     let agentResponse = execution.response;
     if (execution.pendingApproval) {

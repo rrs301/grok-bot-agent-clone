@@ -1,6 +1,7 @@
 import { serve } from 'inngest/next';
 import { inngest } from '@/lib/inngest/client';
 import {
+  executeVmDesktopTask,
   executeRoutineExecution,
   scheduleRoutineExecutions,
 } from '@/lib/inngest/functions';
@@ -11,5 +12,6 @@ export const { GET, POST, PUT } = serve({
   functions: [
     scheduleRoutineExecutions,
     executeRoutineExecution,
+    executeVmDesktopTask,
   ],
 });
