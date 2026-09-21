@@ -5,6 +5,10 @@ export type SavedRoutine = RoutineDraft & {
   agentId: string
   isActive: boolean
   nextRunAt: string | null
+  executionStatus?: "queued" | "running" | "completed" | "failed" | "skipped"
+  latestExecutionId?: string | null
+  latestExecutionError?: string | null
+  latestExecutionCompletedAt?: string | null
 }
 
 export type RoutineEditEventDetail = {
