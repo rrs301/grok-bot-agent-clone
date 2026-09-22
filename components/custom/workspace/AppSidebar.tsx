@@ -272,7 +272,7 @@ function MarketplaceDialog({ agentId }: { agentId: string | null }) {
         <span>Marketplace</span>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[86vh] overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent className="max-h-[86vh] overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="flex items-center gap-2">
             <StoreIcon className="size-5" />
@@ -283,7 +283,7 @@ function MarketplaceDialog({ agentId }: { agentId: string | null }) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[calc(86vh-112px)] overflow-y-auto px-6 py-5">
+        <div className="max-h-[calc(86vh-112px)] overflow-y-auto px-5 py-5 sm:px-6">
           {!agentId ? (
             <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-sm text-muted-foreground">
               Open an agent to manage marketplace tools for it.
@@ -357,13 +357,14 @@ function MarketplaceSection({
           {emptyText}
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {tools.map((tool) => (
             <ToolSuggestionCard
               key={tool.slug}
               agentId={agentId}
               tool={tool}
               onConnectionChange={onConnectionChange}
+              variant="compact"
             />
           ))}
         </div>

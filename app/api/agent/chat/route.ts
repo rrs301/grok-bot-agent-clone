@@ -89,6 +89,24 @@ function normalizeMatchText(value: string) {
     return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function requiresVmDesktopForRequest(text: string) {
+    if (!text) return false;
+
+    const hasWebAction = /\b(?:give me|show me|find|look up|search|read|fetch|get|check|view|visit|browse|open|latest|top|current|breaking|headlines?|inspect|review|compare)\b/i.test(text);
+    const hasNewsSignal = /\b(?:google\s+news|news\.google(?:\.com)?|ai\s+news|latest\s+news|top\s+news|breaking\s+news|headlines?|news\b)/i.test(text);
+    const hasWebTarget = /\b(?:google\s+news|news\.google(?:\.com)?|reddit|youtube|wikipedia|github|amazon|news\b|website|webpage|site|page|product|price|cost|link|url|search\s+the\s+web)\b/i.test(text);
+    const hasUrl = /(?:https?:\/\/|www\.)[\w.-]+\.[a-z]{2,}(?:\/[^\s]*)?/i.test(text);
+    const hasPageContext = /\b(?:from\s+the\s+page|on\s+the\s+page|from\s+this\s+link|this\s+link|product\s+cost|current\s+price|current\s+cost|price\s+from\s+the\s+page)\b/i.test(text);
+
+    return Boolean(
+        hasUrl
+        || hasPageContext
+        || (hasWebAction && hasWebTarget)
+        || (hasNewsSignal && hasWebAction)
+        || /\b(?:google\s+news|news\.google(?:\.com)?)\b/i.test(text)
+    );
+}
+
 function findRoutineForImmediateRun<T extends { id: string; name: string; goal: string; isActive: boolean }>(
     text: string,
     routines: T[]
@@ -203,6 +221,7 @@ export async function POST(req: NextRequest) {
         .reverse()
         .find((message) => message?.role === "user" && typeof message?.content === "string")
         ?.content ?? "";
+    const shouldUseVmDesktopForRequest = requiresVmDesktopForRequest(latestUserText);
 
     if (runRoutineLanguage.test(latestUserText)) {
         const savedRoutines = await db
@@ -365,11 +384,11 @@ export async function POST(req: NextRequest) {
                 const toolName = tool.name ?? "";
                 if (toolName === "COMPOSIO_MULTI_EXECUTE_TOOL") {
                     return {
-                    ...tool,
-                    needsApproval: async (_context: unknown, args: { tools?: Array<{ tool_slug?: string }> }) =>
-                        (args.tools ?? []).some(({ tool_slug = "" }) =>
-                            mutatingAction.test(tool_slug) || !readOnlyAction.test(tool_slug)
-                        ),
+                        ...tool,
+                        needsApproval: async (_context: unknown, args: { tools?: Array<{ tool_slug?: string }> }) =>
+                            (args.tools ?? []).some(({ tool_slug = "" }) =>
+                                mutatingAction.test(tool_slug) || !readOnlyAction.test(tool_slug)
+                            ),
                     };
                 }
 
@@ -481,38 +500,40 @@ export async function POST(req: NextRequest) {
     }
 
     const execution = explicitlyMentionedTools.length > 0
-        ? { response: {
-            type: explicitlyMentionedTools.every((tool) =>
-                Boolean(activeAccounts[tool.slug.toLowerCase()]?.length)
-            ) ? "message" as const : "tool_connection" as const,
-            intent: "immediate_action" as const,
-            message: explicitlyMentionedTools.every((tool) =>
-                Boolean(activeAccounts[tool.slug.toLowerCase()]?.length)
-            )
-                ? `${explicitlyMentionedTools.map((tool) => tool.name).join(", ")} is already connected and available to this agent.`
-                : `Connect ${explicitlyMentionedTools
-                    .filter((tool) => !activeAccounts[tool.slug.toLowerCase()]?.length)
-                    .map((tool) => tool.name)
-                    .join(", ")} below to give this agent access.`,
-            questions: [],
-            suggestedTools: explicitlyMentionedTools.map((tool) => ({
-                slug: tool.slug,
-                name: tool.name,
-                description: tool.description,
-                reason: `Connect ${tool.name} so this agent can use it on your behalf.`,
-                icon: "",
-                isConnected: false,
-                isEnabled: true,
-            })),
-            routine: null,
-            confirmation: null,
-        }, pendingApproval: null }
+        ? {
+            response: {
+                type: explicitlyMentionedTools.every((tool) =>
+                    Boolean(activeAccounts[tool.slug.toLowerCase()]?.length)
+                ) ? "message" as const : "tool_connection" as const,
+                intent: "immediate_action" as const,
+                message: explicitlyMentionedTools.every((tool) =>
+                    Boolean(activeAccounts[tool.slug.toLowerCase()]?.length)
+                )
+                    ? `${explicitlyMentionedTools.map((tool) => tool.name).join(", ")} is already connected and available to this agent.`
+                    : `Connect ${explicitlyMentionedTools
+                        .filter((tool) => !activeAccounts[tool.slug.toLowerCase()]?.length)
+                        .map((tool) => tool.name)
+                        .join(", ")} below to give this agent access.`,
+                questions: [],
+                suggestedTools: explicitlyMentionedTools.map((tool) => ({
+                    slug: tool.slug,
+                    name: tool.name,
+                    description: tool.description,
+                    reason: `Connect ${tool.name} so this agent can use it on your behalf.`,
+                    icon: "",
+                    isConnected: false,
+                    isEnabled: true,
+                })),
+                routine: null,
+                confirmation: null,
+            }, pendingApproval: null
+        }
         : await executeAgentChat(agentConfig.name, agentConfig?.description ?? '',
             messages, agentComposioTools, tools, connectedToolSlugs,
             requestTimezone,
             planningOnly,
             editingRoutine,
-            { agentId, userEmail });
+            shouldUseVmDesktopForRequest ? { agentId, userEmail } : null);
 
     let agentResponse = execution.response;
     if (execution.pendingApproval) {
