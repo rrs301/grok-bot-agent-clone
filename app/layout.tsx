@@ -5,8 +5,8 @@ import { Figtree } from 'next/font/google'
 import { Toaster } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
-  title: "Next.js Premium Startup Boilerplate",
-  description: "Created using the ultimate interactive Next.js stack generator CLI.",
+  title: "Orbit AI Agent Bot Platform",
+  description: "A minimal command center for AI agents, routines, tools, and live execution history.",
 };
 
 

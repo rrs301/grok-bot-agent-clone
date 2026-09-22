@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
 import type { ToolSuggestionCardData } from "@/type/Message"
 import axios, { AxiosError } from "axios"
 import { Check, Link2Off, Loader2, Plug, Unplug, Wrench } from "lucide-react"
@@ -12,6 +13,7 @@ type ToolSuggestionCardProps = {
   agentId: string
   tool: ToolSuggestionCardData
   onConnectionChange: (slug: string, isConnected: boolean) => void
+  variant?: "default" | "compact"
 }
 
 const wait = (milliseconds: number) =>
@@ -33,9 +35,11 @@ export function ToolSuggestionCard({
   agentId,
   tool,
   onConnectionChange,
+  variant = "default",
 }: ToolSuggestionCardProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [isConnected, setIsConnected] = useState(tool.isConnected)
+  const isCompact = variant === "compact"
 
   useEffect(() => {
     setIsConnected(tool.isConnected)
@@ -162,11 +166,25 @@ export function ToolSuggestionCard({
   }
 
   return (
-    <article className="rounded-xl border bg-background p-3.5 shadow-xs">
+    <article
+      className={cn(
+        "rounded-xl border bg-background shadow-xs",
+        isCompact ? "p-3" : "p-3.5"
+      )}
+    >
       <div className="flex items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/50">
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/50",
+            isCompact ? "size-9" : "size-10"
+          )}
+        >
           {tool.icon ? (
-            <img className="size-6 object-contain" src={tool.icon} alt="" />
+            <img
+              className={cn("object-contain", isCompact ? "size-5" : "size-6")}
+              src={tool.icon}
+              alt=""
+            />
           ) : (
             <Wrench className="size-4 text-muted-foreground" />
           )}
@@ -174,7 +192,14 @@ export function ToolSuggestionCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="font-medium leading-5">{tool.name}</h4>
+            <h4
+              className={cn(
+                "font-medium leading-5",
+                isCompact && "text-sm"
+              )}
+            >
+              {tool.name}
+            </h4>
             <Badge
               variant={isConnected ? "secondary" : "outline"}
               className={isConnected ? "text-emerald-700 dark:text-emerald-400" : undefined}
@@ -183,25 +208,38 @@ export function ToolSuggestionCard({
               {status}
             </Badge>
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+          <p
+            className={cn(
+              "mt-0.5 text-xs text-muted-foreground",
+              isCompact ? "leading-4" : "leading-5"
+            )}
+          >
             {tool.description}
           </p>
         </div>
       </div>
 
-      <div className="mt-3 rounded-lg bg-muted/60 px-3 py-2">
+      <div
+        className={cn(
+          "rounded-lg bg-muted/60",
+          isCompact ? "mt-2 px-2.5 py-2" : "mt-3 px-3 py-2"
+        )}
+      >
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           Why this tool
         </p>
-        <p className="mt-0.5 text-xs leading-5">{tool.reason}</p>
+        <p className={cn("mt-0.5 text-xs", isCompact ? "leading-4" : "leading-5")}>
+          {tool.reason}
+        </p>
       </div>
 
-      <div className="mt-3 flex justify-end">
+      <div className={cn("flex justify-end", isCompact ? "mt-2" : "mt-3")}>
         <Button
           size="sm"
           variant={isConnected ? "outline" : "default"}
           disabled={!tool.isEnabled || isUpdating}
           onClick={isConnected ? disconnect : connect}
+          className={isCompact ? "h-8 px-2.5 text-xs" : undefined}
         >
           {isUpdating ? (
             <Loader2 className="animate-spin" />
