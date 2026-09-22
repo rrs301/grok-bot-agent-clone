@@ -96,7 +96,7 @@ function AppSidebar() {
           </div>
         </div>
 
-        <Link href="/workspace/create-agent">
+        <Link href="/workspace/create">
           <Button size="lg" className="h-10 w-full justify-start gap-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0">
             <PlusIcon className="size-4" />
             <span className="group-data-[collapsible=icon]:hidden">
@@ -210,7 +210,7 @@ function getAgentIdFromPath(path: string | null) {
   const match = path?.match(/^\/workspace\/([^/]+)/)
   const agentId = match?.[1]
 
-  if (!agentId || agentId === "create-agent") return null
+  if (!agentId || agentId === "create" || agentId === "create-agent") return null
 
   return decodeURIComponent(agentId)
 }

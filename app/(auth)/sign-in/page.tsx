@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 function SignInContent() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams.get('callbackUrl') || '/workspace';
   const urlError = searchParams.get('error');
 
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
