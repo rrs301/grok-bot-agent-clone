@@ -35,9 +35,9 @@ export const Tools = pgTable('tools', {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
-//Routine Table
-
-
+// Routines store the user's recurring instructions for an agent. The `schedule`
+// and `tools` columns are JSON so the UI can evolve schedule settings and tool
+// selections without requiring a migration for every small shape change.
 export const Routines = pgTable("routines", {
   id: varchar("id").primaryKey(),
   agentId: varchar("agent_id")
@@ -60,6 +60,8 @@ export const Routines = pgTable("routines", {
     .notNull(),
 });
 
+// Each scheduled run gets its own execution row. The unique index prevents the
+// same routine from being queued twice for the same scheduled timestamp.
 export const RoutineExecutions = pgTable("routine_executions", {
   id: varchar("id").primaryKey(),
   routineId: varchar("routine_id")
@@ -85,6 +87,9 @@ export const RoutineExecutions = pgTable("routine_executions", {
   ),
 ]);
 
+// The chat history table keeps the latest conversation state per agent and user.
+// It is optimized for quickly resuming the workspace rather than storing an
+// append-only transcript of every message.
 export const AgentChatHistory = pgTable("agent_chat_history", {
   id: varchar("id").primaryKey(),
   agentId: varchar("agent_id")
@@ -119,6 +124,8 @@ export const AgentChatHistory = pgTable("agent_chat_history", {
   ),
 ]);
 
+// Workflow state tracks long-running connected-tool flows, including Composio
+// connection requests that may need the user to finish OAuth in the browser.
 export const AgentWorkflows = pgTable("agent_workflows", {
   id: varchar("id").primaryKey(),
   agentId: varchar("agent_id")

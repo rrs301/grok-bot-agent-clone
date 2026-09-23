@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   Bot,
@@ -19,7 +20,6 @@ import {
   LockKeyhole,
   MessageSquareText,
   MousePointer2,
-  Orbit,
   Play,
   PlugZap,
   Radar,
@@ -49,7 +49,7 @@ const featureCards = [
       "Orbit breaks goals into visible steps, opens tools, gathers context, and keeps the next action clear.",
     icon: Route,
     className: "lg:col-span-2",
-    accent: "bg-cyan-500",
+    accent: "bg-primary",
   },
   {
     title: "Native agent workspace",
@@ -139,14 +139,14 @@ const faqs = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#f7f7f4] text-neutral-950">
-      <header className="sticky top-0 z-50 border-b border-black/10 bg-[#f7f7f4]/90 backdrop-blur-xl">
+    <main className="min-h-screen bg-[#f5f8ff] text-neutral-950">
+      <header className="sticky top-0 z-50 border-b border-blue-950/10 bg-[#f5f8ff]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2" aria-label="Orbit home">
-            <span className="grid size-9 place-items-center rounded-lg bg-neutral-950 text-white">
-              <Orbit className="size-5" />
+            <span className="grid size-10 place-items-center overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-blue-950/10">
+              <Image src="/logo.png" alt="Logo" width={36} height={36} priority />
             </span>
-            <span className="text-lg font-semibold tracking-tight">Orbit</span>
+            <span className="text-lg font-semibold tracking-tight text-blue-950">Orbit</span>
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Main navigation">
@@ -154,7 +154,7 @@ export default function Home() {
               <a
                 key={item}
                 href={`#${item.toLowerCase()}`}
-                className="text-sm font-medium text-neutral-600 transition hover:text-neutral-950"
+                className="text-sm font-medium text-slate-600 transition hover:text-blue-950"
               >
                 {item}
               </a>
@@ -164,13 +164,13 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Link
               href="/sign-in"
-              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-neutral-700 transition hover:bg-black/5 hover:text-neutral-950 sm:inline-flex"
+              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-blue-600/10 hover:text-blue-950 sm:inline-flex"
             >
               Sign in
             </Link>
             <Button
               size="lg"
-              className="h-10 bg-neutral-950 px-4 text-white hover:bg-neutral-800"
+              className="h-10 bg-primary px-4 text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700"
               render={<Link href="/workspace" />}
             >
               Launch
@@ -180,25 +180,26 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b border-black/10">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
+      <section className="relative overflow-hidden border-b border-blue-950/10">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
+        <div className="absolute left-1/2 top-0 -z-10 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-24">
           <div className="flex flex-col justify-center">
-            <Badge className="mb-6 h-7 w-fit border border-black/10 bg-white text-neutral-800 shadow-sm" variant="outline">
-              <Sparkles className="size-3.5 text-cyan-600" />
+            <Badge className="mb-6 h-7 w-fit border border-blue-950/10 bg-white text-blue-950 shadow-sm" variant="outline">
+              <Sparkles className="size-3.5 text-primary" />
               Recurring AI agent bots
             </Badge>
-            <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-normal text-neutral-950 sm:text-6xl lg:text-7xl">
+            <h1 className="max-w-4xl text-5xl font-semibold leading-[1.02] tracking-normal text-blue-950 sm:text-6xl lg:text-7xl">
               Automate the tasks users repeat every day.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-neutral-600">
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
               Orbit lets users create AI agent bots that remember instructions, run on a schedule, use connected tools, and report back when recurring work is done.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="h-12 bg-neutral-950 px-5 text-base text-white hover:bg-neutral-800"
+                className="h-12 bg-primary px-5 text-base text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"
                 render={<Link href="/workspace" />}
               >
                 Create recurring agent
@@ -207,7 +208,7 @@ export default function Home() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 border-black/15 bg-white px-5 text-base hover:bg-neutral-100"
+                className="h-12 border-blue-950/15 bg-white px-5 text-base text-blue-950 hover:bg-blue-50"
                 render={<a href="#platform" />}
               >
                 <Play data-icon="inline-start" className="size-4" />
@@ -215,11 +216,11 @@ export default function Home() {
               </Button>
             </div>
 
-            <div className="mt-10 grid max-w-xl grid-cols-3 border-y border-black/10">
+            <div className="mt-10 grid max-w-xl grid-cols-3 border-y border-blue-950/10">
               {stats.map((stat) => (
                 <div key={stat.label} className="py-4 pr-4">
-                  <div className="text-2xl font-semibold text-neutral-950">{stat.value}</div>
-                  <div className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-neutral-500">
+                  <div className="text-2xl font-semibold text-blue-950">{stat.value}</div>
+                  <div className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
                     {stat.label}
                   </div>
                 </div>
@@ -227,8 +228,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="relative min-h-[520px] overflow-hidden rounded-lg border border-black/10 bg-neutral-950 p-3 shadow-2xl shadow-black/20">
-            <div className="flex h-full flex-col rounded-md border border-white/10 bg-[#101113]">
+          <div className="relative min-h-[520px] overflow-hidden rounded-lg border border-blue-950/10 bg-[#071225] p-3 shadow-2xl shadow-blue-950/20">
+            <div className="flex h-full flex-col rounded-md border border-white/10 bg-[#08111f]">
               <div className="flex h-12 items-center justify-between border-b border-white/10 px-4">
                 <div className="flex items-center gap-2">
                   <span className="size-3 rounded-full bg-rose-400" />
@@ -246,7 +247,7 @@ export default function Home() {
                   <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                     <div className="mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2 text-sm font-medium text-white">
-                        <Bot className="size-4 text-cyan-300" />
+                        <Bot className="size-4 text-blue-300" />
                         Recurring Task Bot
                       </div>
                       <Badge className="border-emerald-400/20 bg-emerald-400/10 text-emerald-200" variant="outline">
@@ -281,7 +282,7 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <div className="rounded-lg border border-white/10 bg-[#e9f5f2] p-4 text-neutral-950">
+                  <div className="rounded-lg border border-white/10 bg-[#edf4ff] p-4 text-blue-950">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
@@ -291,7 +292,7 @@ export default function Home() {
                           Run my weekday customer follow-up routine
                         </h2>
                       </div>
-                      <MousePointer2 className="size-5 text-emerald-700" />
+                      <MousePointer2 className="size-5 text-blue-700" />
                     </div>
                     <div className="mt-5 grid grid-cols-3 gap-2">
                       {["Tasks", "Done", "Review"].map((label, index) => (
@@ -305,10 +306,10 @@ export default function Home() {
 
                   <div className="grid flex-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-                      <Gauge className="mb-4 size-5 text-cyan-300" />
+                      <Gauge className="mb-4 size-5 text-blue-300" />
                       <div className="text-sm font-medium text-white">Run health</div>
                       <div className="mt-4 h-2 rounded-full bg-white/10">
-                        <div className="h-2 w-[82%] rounded-full bg-cyan-300" />
+                        <div className="h-2 w-[82%] rounded-full bg-blue-300" />
                       </div>
                       <div className="mt-3 text-xs text-neutral-400">82% complete</div>
                     </div>
@@ -323,7 +324,7 @@ export default function Home() {
 
                   <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-start gap-3">
-                      <div className="grid size-9 place-items-center rounded-md bg-cyan-300 text-neutral-950">
+                      <div className="grid size-9 place-items-center rounded-md bg-blue-300 text-blue-950">
                         <Zap className="size-4" />
                       </div>
                       <div>
@@ -345,7 +346,7 @@ export default function Home() {
         <div className="mb-10 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
             <Badge className="mb-4 border-black/10 bg-white text-neutral-700" variant="outline">
-              <Cpu className="size-3.5 text-emerald-600" />
+              <Cpu className="size-3.5 text-primary" />
               Platform
             </Badge>
             <h2 className="max-w-2xl text-3xl font-semibold tracking-normal sm:text-5xl">
@@ -387,8 +388,8 @@ export default function Home() {
       <section id="agents" className="border-y border-black/10 bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-24">
           <div>
-            <Badge className="mb-4 border-black/10 bg-[#f7f7f4] text-neutral-700" variant="outline">
-              <Workflow className="size-3.5 text-cyan-600" />
+            <Badge className="mb-4 border-blue-950/10 bg-[#f5f8ff] text-slate-700" variant="outline">
+              <Workflow className="size-3.5 text-primary" />
               Agents
             </Badge>
             <h2 className="text-3xl font-semibold tracking-normal sm:text-5xl">
@@ -403,7 +404,7 @@ export default function Home() {
             {workflowSteps.map((step, index) => {
               const Icon = step.icon;
               return (
-                <div key={step.title} className="rounded-lg border border-black/10 bg-[#f7f7f4] p-5">
+                <div key={step.title} className="rounded-lg border border-blue-950/10 bg-[#f5f8ff] p-5">
                   <div className="mb-6 flex items-center justify-between">
                     <span className="grid size-10 place-items-center rounded-lg bg-neutral-950 text-white">
                       <Icon className="size-5" />
@@ -432,7 +433,7 @@ export default function Home() {
                   Schedule routines without losing the thread.
                 </h2>
               </div>
-              <Globe2 className="hidden size-10 text-cyan-200 sm:block" />
+              <Globe2 className="hidden size-10 text-blue-200 sm:block" />
             </div>
             <div className="mt-10 grid gap-3 md:grid-cols-3">
               {["Daily lead research", "Weekly report draft", "Incident summary"].map((routine, index) => (
@@ -451,7 +452,7 @@ export default function Home() {
           </div>
 
           <div id="security" className="rounded-lg border border-black/10 bg-white p-6">
-            <Badge className="border-black/10 bg-[#f7f7f4] text-neutral-700" variant="outline">
+            <Badge className="border-blue-950/10 bg-[#f5f8ff] text-slate-700" variant="outline">
               <ShieldCheck className="size-3.5 text-emerald-600" />
               Security
             </Badge>
@@ -463,7 +464,7 @@ export default function Home() {
                 "Workspace-first authentication",
                 "Tool status and disconnect controls",
               ].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-lg border border-black/10 bg-[#f7f7f4] p-3">
+                <div key={item} className="flex items-center gap-3 rounded-lg border border-blue-950/10 bg-[#f5f8ff] p-3">
                   <span className="grid size-7 place-items-center rounded-md bg-emerald-600 text-white">
                     <Check className="size-4" />
                   </span>
@@ -479,7 +480,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
             <div>
-              <Badge className="mb-4 border-black/10 bg-[#f7f7f4] text-neutral-700" variant="outline">
+              <Badge className="mb-4 border-blue-950/10 bg-[#f5f8ff] text-slate-700" variant="outline">
                 <GitBranch className="size-3.5 text-rose-600" />
                 Connected work
               </Badge>
@@ -489,7 +490,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {integrations.map((item) => (
-                <div key={item} className="rounded-lg border border-black/10 bg-[#f7f7f4] px-4 py-5 text-center text-sm font-semibold text-neutral-700">
+                <div key={item} className="rounded-lg border border-blue-950/10 bg-[#f5f8ff] px-4 py-5 text-center text-sm font-semibold text-slate-700">
                   {item}
                 </div>
               ))}
@@ -501,7 +502,7 @@ export default function Home() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-lg border border-black/10 bg-white p-6 lg:col-span-2">
-            <Search className="mb-8 size-6 text-cyan-600" />
+            <Search className="mb-8 size-6 text-primary" />
             <blockquote className="max-w-3xl text-2xl font-semibold leading-snug tracking-normal sm:text-3xl">
               “Orbit makes agent work feel operational instead of experimental. The run trail is the difference between a clever demo and something I can trust.”
             </blockquote>
@@ -520,7 +521,7 @@ export default function Home() {
       <section className="border-t border-black/10 bg-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
-            <Badge className="mb-4 border-black/10 bg-[#f7f7f4] text-neutral-700" variant="outline">
+            <Badge className="mb-4 border-blue-950/10 bg-[#f5f8ff] text-slate-700" variant="outline">
               <Sparkles className="size-3.5 text-amber-600" />
               FAQ
             </Badge>
@@ -528,7 +529,7 @@ export default function Home() {
           </div>
           <div className="space-y-3">
             {faqs.map((faq) => (
-              <div key={faq.question} className="rounded-lg border border-black/10 bg-[#f7f7f4] p-5">
+              <div key={faq.question} className="rounded-lg border border-blue-950/10 bg-[#f5f8ff] p-5">
                 <h3 className="font-semibold">{faq.question}</h3>
                 <p className="mt-2 leading-7 text-neutral-600">{faq.answer}</p>
               </div>
@@ -540,8 +541,10 @@ export default function Home() {
       <section className="bg-neutral-950 px-4 py-16 text-white sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
           <div>
-            <div className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-200">
-              <Orbit className="size-4" />
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-blue-200">
+              <span className="grid size-7 place-items-center overflow-hidden rounded-md bg-white">
+                <Image src="/logo.png" alt="Logo" width={24} height={24} />
+              </span>
               Orbit AI Agent Bot Platform
             </div>
             <h2 className="max-w-2xl text-3xl font-semibold tracking-normal sm:text-5xl">

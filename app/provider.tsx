@@ -11,6 +11,9 @@ function Provider({ children }: { children: React.ReactNode }) {
         data?.user?.email && createNewUser()
     }, [data])
 
+    // Ensure every authenticated OAuth user has a matching local `users` row.
+    // The API route owns the upsert logic so this client component only needs
+    // to signal that the session is ready.
     const createNewUser = async () => {
         const result = await axios.post('/api/user', {});
         console.log(result.data);
